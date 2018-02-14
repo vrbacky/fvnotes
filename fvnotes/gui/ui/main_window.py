@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
 
 from PyQt5.QtCore import QDir, Qt, QTimer
+from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
+
+# Light color scheme
+APP_BACKGROUND = '#D0D0D0'
+MENU_SELECTED = '#A0A0A0'
+WIDGET_BACKGROUND = '#F5F5F5'
+FONT_COLOR = '#050505'
+FONT_INACTIVE = '#A0A0A0'
+
+# Dark color scheme
+APP_BACKGROUND = '#202020'
+MENU_SELECTED = '#454545'
+WIDGET_BACKGROUND = '#101010'
+FONT_COLOR = '#B5B5B5'
+FONT_INACTIVE = '#2F2F2F'
 
 
 class MainWindow(QMainWindow):
@@ -27,13 +42,90 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
+        # self.showMaximized()
+        self.change_color_scheme()
         self.setWindowTitle(self.window_title)
         self.setCentralWidget(MainWidget(self))
-
         self.status_bar.showMessage('StatusBar')
 
-        # self.showMaximized()
         self.show()
+
+    def change_color_scheme(self):
+        self.setStyleSheet(
+            f'QMainWindow{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR};}}'
+
+            f'QMenuBar{{'
+            f'background-color: {APP_BACKGROUND};}}'
+
+            f'QMenuBar::item{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR};}}'
+
+            f'QMenuBar::item::selected{{'
+            f'background-color: {MENU_SELECTED};}}'
+
+            f'QMenu{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR};}}'
+
+            f'QMenu::item::selected{{'
+            f'background-color: {MENU_SELECTED};}}'
+
+            f'QToolBar{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR};}}'
+
+            f'QToolButton::hover{{'
+            f'background-color: {MENU_SELECTED};'
+            f'color: {FONT_COLOR}}}'
+
+            f'QStatusBar{{'
+            f'color: {FONT_COLOR};}}'
+
+            f'QTextEdit{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR}}}'
+
+            f'QTreeView{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR};}}'
+
+            f'QCalendarWidget QWidget{{'
+            f'background-color: {WIDGET_BACKGROUND};}}'
+
+            f'QCalendarWidget QToolButton{{'
+            f'color: {FONT_COLOR}}}'
+
+            f'QCalendarWidget QToolButton::hover{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR}}}'
+
+            f'QCalendarWidget QSpinBox{{'
+            f'background-color: {APP_BACKGROUND};'
+            f'color: {FONT_COLOR}}}'
+
+            f'QCalendarWidget QMenu{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR}}}'
+
+            f'QCalendarWidget QAbstractItemView:enabled{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR};'
+            f'selection-background-color: {APP_BACKGROUND};'
+            f'selection-color: {FONT_COLOR};}}'
+
+            f'QCalendarWidget QAbstractItemView:disabled{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_INACTIVE};}}'
+
+            f'QCalendarWidget QWidget{{'
+            f'alternate-background-color: {APP_BACKGROUND};}}'
+
+            f'QScrollBar{{'
+            f'background-color: {APP_BACKGROUND};}}'
+        )
 
 
 class MainWidget(QWidget):
@@ -115,6 +207,7 @@ class MainWidget(QWidget):
         self._rename_window(self.parent.window_title)
         self.timer.singleShot(1, self.jump_to_index_bellow)
 
+
     def _hide_unnecessary_columns(self, view):
         for column in range(1, 4):
             view.setColumnHidden(column, True)
@@ -156,3 +249,16 @@ class MainWidget(QWidget):
 
     def file_changed(self):
         self._rename_window()
+
+    def rgb_to_palette(self, rgb_background=None, rgb_front=None, rgb_window=None):
+        palette = QPalette()
+        if rgb_background is not None:
+            palette.setColor(QPalette.Base, QColor(*rgb_background))
+        if rgb_front is not None:
+            palette.setColor(QPalette.Text, QColor(*rgb_front))
+        if rgb_window is not None:
+            palette.setColor(QPalette.Window, QColor(*rgb_window))
+        col = (100,100,0)
+        palette.setColor(QPalette.WindowText, QColor(*col))
+        palette.setColor(QPalette.Text, QColor(*col))
+        return palette
