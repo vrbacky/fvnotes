@@ -8,6 +8,13 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 
+NOTES_FONT = 'Ubuntu Mono'
+NOTES_FONT_SIZE = '11'
+TREES_FONT = 'Ubuntu Regular'
+TREES_FONT_SIZE = '10'
+CALENDAR_FONT = 'Ubuntu Regular'
+CALENDAR_FONT_SIZE = '10'
+
 # Light color scheme
 APP_BACKGROUND = '#D0D0D0'
 MENU_SELECTED = '#A0A0A0'
@@ -86,14 +93,20 @@ class MainWindow(QMainWindow):
 
             f'QTextEdit{{'
             f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR}}}'
+            f'color: {FONT_COLOR};'
+            f'font-size: {NOTES_FONT_SIZE}pt;'
+            f'font: {NOTES_FONT};}}'
 
             f'QTreeView{{'
             f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'color: {FONT_COLOR};'
+            f'font-size: {TREES_FONT_SIZE}pt;'
+            f'font: {TREES_FONT};}}'
 
             f'QCalendarWidget QWidget{{'
-            f'background-color: {WIDGET_BACKGROUND};}}'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'font-size: {CALENDAR_FONT_SIZE}pt;'
+            f'font: {CALENDAR_FONT};}}'
 
             f'QCalendarWidget QToolButton{{'
             f'color: {FONT_COLOR}}}'
@@ -104,11 +117,11 @@ class MainWindow(QMainWindow):
 
             f'QCalendarWidget QSpinBox{{'
             f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR}}}'
+            f'color: {FONT_COLOR};}}'
 
             f'QCalendarWidget QMenu{{'
             f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR}}}'
+            f'color: {FONT_COLOR};}}'
 
             f'QCalendarWidget QAbstractItemView:enabled{{'
             f'background-color: {WIDGET_BACKGROUND};'
@@ -119,6 +132,7 @@ class MainWindow(QMainWindow):
             f'QCalendarWidget QAbstractItemView:disabled{{'
             f'background-color: {WIDGET_BACKGROUND};'
             f'color: {FONT_INACTIVE};}}'
+            
 
             f'QCalendarWidget QWidget{{'
             f'alternate-background-color: {APP_BACKGROUND};}}'
