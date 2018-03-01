@@ -7,12 +7,14 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
+from fvnotes.gui.ui.custom_widgets import TextEditGuide
+
 
 NOTES_FONT = 'Ubuntu Mono'
 NOTES_FONT_SIZE = '11'
-TREES_FONT = 'Ubuntu Regular'
+TREES_FONT = 'Ubuntu'
 TREES_FONT_SIZE = '10'
-CALENDAR_FONT = 'Ubuntu Regular'
+CALENDAR_FONT = 'Ubuntu'
 CALENDAR_FONT_SIZE = '10'
 
 # Light color scheme
@@ -21,6 +23,7 @@ MENU_SELECTED = '#A0A0A0'
 WIDGET_BACKGROUND = '#F5F5F5'
 FONT_COLOR = '#050505'
 FONT_INACTIVE = '#A0A0A0'
+VERTICAL_LINE_COLOR = '#C0C0C0'
 
 # Dark color scheme
 APP_BACKGROUND = '#202020'
@@ -28,6 +31,10 @@ MENU_SELECTED = '#454545'
 WIDGET_BACKGROUND = '#101010'
 FONT_COLOR = '#B5B5B5'
 FONT_INACTIVE = '#2F2F2F'
+VERTICAL_LINE_COLOR = '#353535'
+
+VERTICAL_LINES_NOTES = {40, 80}
+VERTICAL_LINES_JOURNAL = 80
 
 
 class MainWindow(QMainWindow):
@@ -95,7 +102,7 @@ class MainWindow(QMainWindow):
             f'background-color: {WIDGET_BACKGROUND};'
             f'color: {FONT_COLOR};'
             f'font-size: {NOTES_FONT_SIZE}pt;'
-            f'font: {NOTES_FONT};}}'
+            f'font-family: {NOTES_FONT};}}'
 
             f'QTreeView{{'
             f'background-color: {WIDGET_BACKGROUND};'
@@ -132,7 +139,6 @@ class MainWindow(QMainWindow):
             f'QCalendarWidget QAbstractItemView:disabled{{'
             f'background-color: {WIDGET_BACKGROUND};'
             f'color: {FONT_INACTIVE};}}'
-            
 
             f'QCalendarWidget QWidget{{'
             f'alternate-background-color: {APP_BACKGROUND};}}'
@@ -160,11 +166,15 @@ class MainWidget(QWidget):
         self.files_view = QTreeView(headerHidden=True, rootIsDecorated=False)
         self.files_favourites = QTextEdit('Favourites - to be implemented')
 
-        self.notes_text = QTextEdit('main_text')
+        self.notes_text = TextEditGuide(
+            guides_color=VERTICAL_LINE_COLOR,
+            guides_positions=VERTICAL_LINES_NOTES)
 
         self.journal_widget = QWidget()
         self.journal_layout = QVBoxLayout()
-        self.journal_text = QTextEdit('Journal Text')
+        self.journal_text = TextEditGuide(
+            guides_color=VERTICAL_LINE_COLOR,
+            guides_positions=VERTICAL_LINES_JOURNAL)
         self.journal_calendar_wrapper = QWidget()
         self.journal_calendar_layout = QHBoxLayout()
         self.journal_calendar = QCalendarWidget()
@@ -221,7 +231,6 @@ class MainWidget(QWidget):
         self._rename_window(self.parent.window_title)
         self.timer.singleShot(1, self.jump_to_index_bellow)
 
-
     def _hide_unnecessary_columns(self, view):
         for column in range(1, 4):
             view.setColumnHidden(column, True)
@@ -264,7 +273,10 @@ class MainWidget(QWidget):
     def file_changed(self):
         self._rename_window()
 
-    def rgb_to_palette(self, rgb_background=None, rgb_front=None, rgb_window=None):
+    def rgb_to_palette(self,
+                       rgb_background=None,
+                       rgb_front=None,
+                       rgb_window=None):
         palette = QPalette()
         if rgb_background is not None:
             palette.setColor(QPalette.Base, QColor(*rgb_background))
@@ -272,7 +284,7 @@ class MainWidget(QWidget):
             palette.setColor(QPalette.Text, QColor(*rgb_front))
         if rgb_window is not None:
             palette.setColor(QPalette.Window, QColor(*rgb_window))
-        col = (100,100,0)
+        col = (100, 100, 0)
         palette.setColor(QPalette.WindowText, QColor(*col))
         palette.setColor(QPalette.Text, QColor(*col))
         return palette
