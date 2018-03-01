@@ -3,7 +3,8 @@
 from PyQt5.QtCore import QDir, Qt, QTimer
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
-    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView
+    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
+    QMessageBox
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
@@ -271,7 +272,15 @@ class MainWidget(QWidget):
             self.files_view.setColumnHidden(0, False)
 
     def file_changed(self):
-        self._rename_window()
+        try:
+            with open(self._current_file, 'r') as file:
+                self.notes_text.setPlainText(file.read())
+            self._rename_window()
+        except Exception as err:
+            QMessageBox.critical(
+                self,
+                'File Open Failed',
+                f'This file cannot be opened\n\n{err}')
 
     def rgb_to_palette(self,
                        rgb_background=None,
