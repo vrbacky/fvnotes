@@ -217,6 +217,8 @@ class MainWidget(QWidget):
             self.file_changed)
         self.directories_view.setCurrentIndex(self.root_index)
 
+        self.notes_text.textChanged.connect(self.save_file)
+
         self.journal_widget.setLayout(self.journal_layout)
         self.journal_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -273,7 +275,7 @@ class MainWidget(QWidget):
 
     def file_changed(self):
         try:
-            with open(self._current_file, 'r') as file:
+            with open(self._current_file, 'rt') as file:
                 self.notes_text.setPlainText(file.read())
             self._rename_window()
         except Exception as err:
@@ -281,6 +283,16 @@ class MainWidget(QWidget):
                 self,
                 'File Open Failed',
                 f'This file cannot be opened\n\n{err}')
+
+    def save_file(self):
+        try:
+            with open(self._current_file, 'wt') as file:
+                file.write(self.notes_text.toPlainText())
+        except Exception as err:
+            QMessageBox.critical(
+                self,
+                'File Save Failed',
+                f'Cannot write to the file\n\n{err}')
 
     def rgb_to_palette(self,
                        rgb_background=None,
