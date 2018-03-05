@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import string
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase
-from PyQt5.QtWidgets import QTextEdit
+from PyQt5.QtWidgets import QTextEdit, QMessageBox
 
 
 class TextEditGuide(QTextEdit):
@@ -9,6 +11,8 @@ class TextEditGuide(QTextEdit):
 
     Parameters
     ----------
+    parent : QWidget
+        Parent of the new widget
     guides_color : QColor
         Color of the guidelines
     line_positions : iterable
@@ -23,9 +27,16 @@ class TextEditGuide(QTextEdit):
         Color of the guidelines
     line_positions : iterable
         Positions of the guidelines in number of average characters
+    current_file : str
+        Path to the current file opened in the widget
+    first_line : str
+        Text of the fist line of the opened file (read only)
     """
 
+    lost_focus = pyqtSignal()
+
     def __init__(self,
+                 parent=None,
                  guides_color=QColor('#AAAAAA'),
                  guides_positions=(72, 80),
                  *args, **kwargs):
@@ -34,6 +45,8 @@ class TextEditGuide(QTextEdit):
         self._guides_positions = guides_positions
         self.guides_color = guides_color
         self._initialization = True
+        self._current_file = None
+        self.parent = parent
 
     def _initialize_gui(self):
         self.font = self.currentFont()
@@ -41,12 +54,43 @@ class TextEditGuide(QTextEdit):
         self._initialization = False
 
     @property
+    def first_line(self):
+        """Text of the fist line of the opened file (read only)
+
+        :type: str
+        :getter: Returns the text
+        """
+        return self.toPlainText().split('\n')[0]
+
+    @property
+    def current_file(self):
+        """Path to the current file opened in the widget
+
+        :type:
+        :getter: Returns the path to the file
+        :setter: Opens it in the widget
+        """
+        return self._current_file
+
+    @current_file.setter
+    def current_file(self, file):
+        self._current_file = file
+        try:
+            with open(file, 'rt') as f:
+                self.setPlainText(f.read())
+        except Exception as err:
+            QMessageBox.critical(
+                self,
+                'File Open Failed',
+                f'This file cannot be opened\n\n{err}')
+
+    @property
     def font(self):
         """Font used in the widget
 
         :type: QFont
         :getter: Returns the current font
-        :setter: Set the font
+        :setter: Sets the font
         """
         return self._font
 
@@ -65,7 +109,7 @@ class TextEditGuide(QTextEdit):
 
         :type: tuple
         :getter: Returns the positions
-        :setter: Set the positions
+        :setter: Sets the positions
         """
         return self._guides_positions
 
@@ -76,6 +120,17 @@ class TextEditGuide(QTextEdit):
             self._font_metrics.width('A' * position)
             for position in self.convert_to_tuple(positions)]
         self.update()
+
+    def save_file(self):
+        text = self.toPlainText()
+        try:
+            with open(self._current_file, 'wt') as file:
+                file.write(text)
+        except Exception as err:
+            QMessageBox.critical(
+                self,
+                'File Save Failed',
+                f'Cannot write to the file\n\n{err}')
 
     def paintEvent(self, event):
         if self._initialization:
@@ -91,6 +146,12 @@ class TextEditGuide(QTextEdit):
 
         super(TextEditGuide, self).paintEvent(event)
 
+    def focusOutEvent(self, event):
+        if self._current_file is not None:
+            self.save_file()
+            self.lost_focus.emit()
+        super(TextEditGuide, self).focusOutEvent(event)
+
     @staticmethod
     def convert_to_tuple(data):
         """Convert provided iterable or uniterable parameter to a tuple"""
@@ -98,3 +159,28 @@ class TextEditGuide(QTextEdit):
             return tuple(data)
         except TypeError:
             return (data,)
+
+    @staticmethod
+    def convert_text_to_filename(text):
+        """Convert a string to a valid file name
+
+        Parameters
+        ----------
+        text : str
+            A string to be converted
+
+        Returns
+        -------
+        str
+            A string with all non-valid characters replaced by underscores.
+            Only ASCII letters and numbers are considered valid.
+        """
+        valid_characters = f'-_.(){string.ascii_letters}{string.digits}'
+        filename = ''
+        for letter in text:
+            if letter in valid_characters:
+                filename += letter
+            else:
+                filename += '_'
+
+        return filename

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from PyQt5.QtCore import QDir, Qt, QTimer
+import os
+from PyQt5.QtCore import QDir, Qt, QTimer, QFile
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
-    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox
+    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
@@ -154,7 +154,7 @@ class MainWidget(QWidget):
         super().__init__(parent=parent)
         self.parent = parent
 
-        self.ROOT_DIR = '/home/'
+        self.ROOT_DIR = '/home/fv-user/notes'
 
         self.main_layout = QHBoxLayout()
         self.main_splitter = QSplitter()
@@ -168,12 +168,14 @@ class MainWidget(QWidget):
         self.files_favourites = QTextEdit('Favourites - to be implemented')
 
         self.notes_text = TextEditGuide(
+            parent=self,
             guides_color=VERTICAL_LINE_COLOR,
             guides_positions=VERTICAL_LINES_NOTES)
 
         self.journal_widget = QWidget()
         self.journal_layout = QVBoxLayout()
         self.journal_text = TextEditGuide(
+            parent=self,
             guides_color=VERTICAL_LINE_COLOR,
             guides_positions=VERTICAL_LINES_JOURNAL)
         self.journal_calendar_wrapper = QWidget()
@@ -212,12 +214,12 @@ class MainWidget(QWidget):
         self._hide_unnecessary_columns(self.files_view)
 
         self.directories_view.selectionModel().selectionChanged.connect(
-            self.dir_changed)
+            self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
-            self.file_changed)
+            self._file_changed)
         self.directories_view.setCurrentIndex(self.root_index)
 
-        self.notes_text.textChanged.connect(self.save_file)
+        self.notes_text.lost_focus.connect(self._rename_note)
 
         self.journal_widget.setLayout(self.journal_layout)
         self.journal_layout.setContentsMargins(0, 0, 0, 0)
@@ -250,62 +252,39 @@ class MainWidget(QWidget):
             self.directories_view.setCurrentIndex(index)
             self.files_view.hideColumn(0)
 
-    @property
-    def _current_dir(self):
+    def _get_current_dir(self):
         current_index = self.directories_view.selectionModel().currentIndex()
         return self.directories_model.filePath(current_index)
 
-    @property
-    def _current_file(self):
-
-        current_index = self.files_view.selectionModel().currentIndex()
-        return self.files_model.filePath(current_index)
-
     def _rename_window(self, title=None):
         if title is None:
-            short_current_file = self._current_file.replace(self.ROOT_DIR, '')
+            short_current_file = self.notes_text.current_file.replace(
+                self.ROOT_DIR, '')
             title = (f'{self.parent.window_title} - {short_current_file}')
         self.parent.setWindowTitle(title)
 
-    def dir_changed(self):
+    def _dir_changed(self):
         self.files_view.setRootIndex(
-            self.files_model.setRootPath(self._current_dir))
+            self.files_model.setRootPath(self._get_current_dir()))
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
 
-    def file_changed(self):
-        try:
-            with open(self._current_file, 'rt') as file:
-                self.notes_text.setPlainText(file.read())
-            self._rename_window()
-        except Exception as err:
-            QMessageBox.critical(
-                self,
-                'File Open Failed',
-                f'This file cannot be opened\n\n{err}')
+    def _file_changed(self):
+        current_index = self.files_view.selectionModel().currentIndex()
+        self.notes_text.current_file = self.files_model.filePath(current_index)
+        self._rename_window()
 
-    def save_file(self):
-        try:
-            with open(self._current_file, 'wt') as file:
-                file.write(self.notes_text.toPlainText())
-        except Exception as err:
-            QMessageBox.critical(
-                self,
-                'File Save Failed',
-                f'Cannot write to the file\n\n{err}')
+    def _rename_note(self):
+        first_line = self.notes_text.first_line
+        if first_line == '':
+            first_line = '_'
+        new_filename = os.path.join(
+            self._get_current_dir(),
+            self.notes_text.convert_text_to_filename(first_line) + '.md')
+        self._rename_current_note(new_filename)
 
-    def rgb_to_palette(self,
-                       rgb_background=None,
-                       rgb_front=None,
-                       rgb_window=None):
-        palette = QPalette()
-        if rgb_background is not None:
-            palette.setColor(QPalette.Base, QColor(*rgb_background))
-        if rgb_front is not None:
-            palette.setColor(QPalette.Text, QColor(*rgb_front))
-        if rgb_window is not None:
-            palette.setColor(QPalette.Window, QColor(*rgb_window))
-        col = (100, 100, 0)
-        palette.setColor(QPalette.WindowText, QColor(*col))
-        palette.setColor(QPalette.Text, QColor(*col))
-        return palette
+    def _rename_current_note(self, new_file):
+        QFile(self.notes_text.current_file).rename(new_file)
+        new_index = self.files_model.index(new_file)
+        self.files_view.setCurrentIndex(new_index)
+        self.current_file = new_file
