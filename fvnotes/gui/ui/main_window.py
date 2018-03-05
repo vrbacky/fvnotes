@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from PyQt5.QtCore import QDir, Qt, QTimer, QFile
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView
 
@@ -164,6 +163,7 @@ class MainWidget(QWidget):
         self.root_index = self.directories_model.setRootPath(self.ROOT_DIR)
         self.directories_view = QTreeView(headerHidden=True)
         self.files_model = QFileSystemModel()
+        self.files_proxy = QSortFilterProxyModel()
         self.files_view = QTreeView(headerHidden=True, rootIsDecorated=False)
         self.files_favourites = QTextEdit('Favourites - to be implemented')
 
@@ -210,7 +210,13 @@ class MainWidget(QWidget):
         self._hide_unnecessary_columns(self.directories_view)
 
         self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
-        self.files_view.setModel(self.files_model)
+        self.files_proxy.setSourceModel(self.files_model)
+        self.files_proxy.setDynamicSortFilter(True)
+
+        self.files_view.setModel(self.files_proxy)
+        self.files_view.setSortingEnabled(True)
+        self.files_view.sortByColumn(0, Qt.AscendingOrder)
+
         self._hide_unnecessary_columns(self.files_view)
 
         self.directories_view.selectionModel().selectionChanged.connect(
@@ -264,13 +270,15 @@ class MainWidget(QWidget):
         self.parent.setWindowTitle(title)
 
     def _dir_changed(self):
-        self.files_view.setRootIndex(
-            self.files_model.setRootPath(self._get_current_dir()))
+        source_index = self.files_model.setRootPath(self._get_current_dir())
+        proxy_index = self.files_proxy.mapFromSource(source_index)
+        self.files_view.setRootIndex(proxy_index)
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
 
     def _file_changed(self):
         current_index = self.files_view.selectionModel().currentIndex()
+        current_index = self.files_proxy.mapToSource(current_index)
         self.notes_text.current_file = self.files_model.filePath(current_index)
         self._rename_window()
 
@@ -286,5 +294,6 @@ class MainWidget(QWidget):
     def _rename_current_note(self, new_file):
         QFile(self.notes_text.current_file).rename(new_file)
         new_index = self.files_model.index(new_file)
-        self.files_view.setCurrentIndex(new_index)
+        new_proxy_index = self.files_proxy.mapFromSource(new_index)
+        self.files_view.setCurrentIndex(new_proxy_index)
         self.current_file = new_file
