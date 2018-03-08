@@ -122,15 +122,16 @@ class TextEditGuide(QTextEdit):
         self.update()
 
     def save_file(self):
-        text = self.toPlainText()
-        try:
-            with open(self._current_file, 'wt') as file:
-                file.write(text)
-        except Exception as err:
-            QMessageBox.critical(
-                self,
-                'File Save Failed',
-                f'Cannot write to the file\n\n{err}')
+        if self._current_file is not None:
+            text = self.toPlainText()
+            try:
+                with open(self._current_file, 'wt') as file:
+                    file.write(text)
+            except Exception as err:
+                QMessageBox.critical(
+                    self,
+                    'File Save Failed',
+                    f'Cannot write to the file\n\n{err}')
 
     def paintEvent(self, event):
         if self._initialization:
@@ -145,12 +146,6 @@ class TextEditGuide(QTextEdit):
                                  line_position + self._margin, self.height())
 
         super(TextEditGuide, self).paintEvent(event)
-
-    def focusOutEvent(self, event):
-        if self._current_file is not None:
-            self.save_file()
-            self.lost_focus.emit()
-        super(TextEditGuide, self).focusOutEvent(event)
 
     @staticmethod
     def convert_to_tuple(data):

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
 import os
+
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
-    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView
+    QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
+    QMessageBox
+
 
 from fvnotes import AUTHOR, NAME, VERSION
+from fvnotes.exceptions import CannotRenameFileError
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 from fvnotes.gui.ui.custom_widgets import TextEditGuide
 
@@ -48,9 +52,12 @@ class MainWindow(QMainWindow):
 
         self.window_title = '{} v{}'.format(self.application,
                                             self.version)
+        self.main_widget = MainWidget(self)
 
-        self.menu_bar = self.setMenuBar(MenuBar())
-        self.tool_bar = self.addToolBar(ToolBar())
+        self.menu_bar = MenuBar(self)
+        self.setMenuBar(self.menu_bar)
+        self.tool_bar = ToolBar(self)
+        self.addToolBar(self.tool_bar)
         self.status_bar = self.statusBar()
 
         self.init_ui()
@@ -59,7 +66,7 @@ class MainWindow(QMainWindow):
         # self.showMaximized()
         self.change_color_scheme()
         self.setWindowTitle(self.window_title)
-        self.setCentralWidget(MainWidget(self))
+        self.setCentralWidget(self.main_widget)
         self.status_bar.showMessage('StatusBar')
 
         self.show()
@@ -147,6 +154,14 @@ class MainWindow(QMainWindow):
             f'background-color: {APP_BACKGROUND};}}'
         )
 
+    def closeEvent(self, event):
+        if self.main_widget.notes_text.current_file is not None:
+            self.main_widget.notes_text.save_file()
+            try:
+                self.main_widget._rename_note()
+            except CannotRenameFileError:
+                event.ignore()
+
 
 class MainWidget(QWidget):
     def __init__(self, parent=None):
@@ -219,13 +234,7 @@ class MainWidget(QWidget):
 
         self._hide_unnecessary_columns(self.files_view)
 
-        self.directories_view.selectionModel().selectionChanged.connect(
-            self._dir_changed)
-        self.files_view.selectionModel().selectionChanged.connect(
-            self._file_changed)
         self.directories_view.setCurrentIndex(self.root_index)
-
-        self.notes_text.lost_focus.connect(self._rename_note)
 
         self.journal_widget.setLayout(self.journal_layout)
         self.journal_layout.setContentsMargins(0, 0, 0, 0)
@@ -241,6 +250,11 @@ class MainWidget(QWidget):
 
         self._rename_window(self.parent.window_title)
         self.timer.singleShot(1, self.jump_to_index_bellow)
+
+        self.directories_view.selectionModel().selectionChanged.connect(
+            self._dir_changed)
+        self.files_view.selectionModel().selectionChanged.connect(
+            self.file_changed)
 
     def _hide_unnecessary_columns(self, view):
         for column in range(1, 4):
@@ -276,24 +290,47 @@ class MainWidget(QWidget):
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
 
-    def _file_changed(self):
-        current_index = self.files_view.selectionModel().currentIndex()
+    def file_changed(self):
+        if self.notes_text.current_file is not None:
+            self.notes_text.save_file()
+            try:
+                self._rename_note()
+            except CannotRenameFileError:
+                pass
+
+        current_index = self.files_view.currentIndex()
         current_index = self.files_proxy.mapToSource(current_index)
-        self.notes_text.current_file = self.files_model.filePath(current_index)
+        self.notes_text.current_file = self.files_model.filePath(
+            current_index)
+
         self._rename_window()
 
     def _rename_note(self):
+        current_file = self.notes_text.current_file
+        dir_of_current_file = os.path.dirname(current_file)
+
         first_line = self.notes_text.first_line
         if first_line == '':
             first_line = '_'
-        new_filename = os.path.join(
-            self._get_current_dir(),
-            self.notes_text.convert_text_to_filename(first_line) + '.md')
-        self._rename_current_note(new_filename)
 
-    def _rename_current_note(self, new_file):
-        QFile(self.notes_text.current_file).rename(new_file)
-        new_index = self.files_model.index(new_file)
-        new_proxy_index = self.files_proxy.mapFromSource(new_index)
-        self.files_view.setCurrentIndex(new_proxy_index)
-        self.current_file = new_file
+        new_filename = os.path.join(
+            dir_of_current_file,
+            self.notes_text.convert_text_to_filename(first_line) + '.md')
+
+        if new_filename != current_file:
+            if not QFile(current_file).rename(new_filename):
+                QMessageBox.critical(
+                    self,
+                    'File Cannot Be Renamed',
+                    'The note file cannot be renamed. Try to change '
+                    'the first line of the note.')
+                self.files_view.selectionModel().selectionChanged.disconnect(
+                    self.file_changed)
+                original_index = self.files_model.index(current_file)
+                original_proxy_index = self.files_proxy.mapFromSource(
+                    original_index)
+                self.files_view.setCurrentIndex(original_proxy_index)
+                self.files_view.selectionModel().selectionChanged.connect(
+                    self.file_changed)
+
+                raise CannotRenameFileError
