@@ -69,6 +69,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.status_bar.showMessage('StatusBar')
 
+        self.menu_bar.save_note.connect(self.main_widget.save_note)
+        self.tool_bar.save_note.connect(self.main_widget.save_note)
+
         self.show()
 
     def change_color_scheme(self):
@@ -290,6 +293,13 @@ class MainWidget(QWidget):
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
 
+    def save_note(self):
+        self.notes_text.save_file()
+        try:
+            self._rename_note(selection_changed=False)
+        except CannotRenameFileError:
+            pass
+
     def file_changed(self):
         if self.notes_text.current_file is not None:
             self.notes_text.save_file()
@@ -305,7 +315,8 @@ class MainWidget(QWidget):
 
         self._rename_window()
 
-    def _rename_note(self):
+    def _rename_note(self, selection_changed=True):
+        selected_file_index = self.files_view.currentIndex()
         current_file = self.notes_text.current_file
         dir_of_current_file = os.path.dirname(current_file)
 
@@ -324,13 +335,21 @@ class MainWidget(QWidget):
                     'File Cannot Be Renamed',
                     'The note file cannot be renamed. Try to change '
                     'the first line of the note.')
-                self.files_view.selectionModel().selectionChanged.disconnect(
-                    self.file_changed)
-                original_index = self.files_model.index(current_file)
-                original_proxy_index = self.files_proxy.mapFromSource(
-                    original_index)
-                self.files_view.setCurrentIndex(original_proxy_index)
-                self.files_view.selectionModel().selectionChanged.connect(
-                    self.file_changed)
-
+                self.select_file_by_name(current_file)
                 raise CannotRenameFileError
+            else:
+                if selection_changed:
+                    self.files_view.setCurrentIndex(selected_file_index)
+                else:
+                    self.notes_text.current_file = new_filename
+                    self.select_file_by_name(new_filename)
+
+    def select_file_by_name(self, filename):
+        self.files_view.selectionModel().selectionChanged.disconnect(
+            self.file_changed)
+        original_index = self.files_model.index(filename)
+        original_proxy_index = self.files_proxy.mapFromSource(
+            original_index)
+        self.files_view.setCurrentIndex(original_proxy_index)
+        self.files_view.selectionModel().selectionChanged.connect(
+            self.file_changed)
