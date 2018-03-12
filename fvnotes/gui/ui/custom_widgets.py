@@ -75,14 +75,17 @@ class TextEditGuide(QTextEdit):
     @current_file.setter
     def current_file(self, file):
         self._current_file = file
-        try:
-            with open(file, 'rt') as f:
-                self.setPlainText(f.read())
-        except Exception as err:
-            QMessageBox.critical(
-                self,
-                'File Open Failed',
-                f'This file cannot be opened\n\n{err}')
+        if file is not None:
+            try:
+                with open(file, 'rt') as f:
+                    self.setPlainText(f.read())
+            except Exception as err:
+                QMessageBox.critical(
+                    self,
+                    'File Open Failed',
+                    f'This file cannot be opened\n\n{err}')
+        else:
+            self.setPlainText('')
 
     @property
     def font(self):
@@ -121,17 +124,19 @@ class TextEditGuide(QTextEdit):
             for position in self.convert_to_tuple(positions)]
         self.update()
 
-    def save_file(self):
-        if self._current_file is not None:
-            text = self.toPlainText()
-            try:
-                with open(self._current_file, 'wt') as file:
-                    file.write(text)
-            except Exception as err:
-                QMessageBox.critical(
-                    self,
-                    'File Save Failed',
-                    f'Cannot write to the file\n\n{err}')
+    def save_file(self, file_path=None):
+        if file_path is None:
+            file_path = self._current_file
+
+        text = self.toPlainText()
+        try:
+            with open(file_path, 'wt') as file:
+                file.write(text)
+        except Exception as err:
+            QMessageBox.critical(
+                self,
+                'File Save Failed',
+                f'Cannot write to the file\n\n{err}')
 
     def paintEvent(self, event):
         if self._initialization:

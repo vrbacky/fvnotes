@@ -69,6 +69,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.status_bar.showMessage('StatusBar')
 
+        self.menu_bar.create_note.connect(self.main_widget.create_note)
+        self.tool_bar.create_note.connect(self.main_widget.create_note)
         self.menu_bar.save_note.connect(self.main_widget.save_note)
         self.tool_bar.save_note.connect(self.main_widget.save_note)
 
@@ -293,20 +295,46 @@ class MainWidget(QWidget):
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
 
-    def save_note(self):
-        self.notes_text.save_file()
-        try:
-            self._rename_note(selection_changed=False)
-        except CannotRenameFileError:
-            pass
-
-    def file_changed(self):
+    def create_note(self):
+        self.files_view.clearSelection()
         if self.notes_text.current_file is not None:
+            self.save_note()
+        self.notes_text.current_file = None
+        self.parent.setWindowTitle(self.parent.window_title)
+        self.notes_text.setFocus()
+
+    def save_note(self, selection_changed=False):
+        if self.notes_text.toPlainText() == '':
+            return 0
+        if self.notes_text.current_file is None:
+            directory = self._get_current_dir()
+            first_line = self.notes_text.first_line
+            if first_line == '':
+                first_line = '_'
+            new_filename = os.path.join(
+                directory,
+                self.notes_text.convert_text_to_filename(first_line) + '.md')
+            if QFile(new_filename).exists():
+                QMessageBox.critical(
+                    self,
+                    'File Cannot Be Saved',
+                    'The note file cannot be saved. Try to change '
+                    'the first line of the note.')
+            else:
+                self.notes_text.save_file(new_filename)
+                self.notes_text.current_file = new_filename
+                self._rename_window()
+                self.select_file_by_name(new_filename)
+
+        else:
             self.notes_text.save_file()
             try:
-                self._rename_note()
+                self._rename_note(selection_changed)
             except CannotRenameFileError:
                 pass
+
+    def file_changed(self):
+        self.save_note(selection_changed=True)
 
         current_index = self.files_view.currentIndex()
         current_index = self.files_proxy.mapToSource(current_index)
@@ -343,6 +371,7 @@ class MainWidget(QWidget):
                 else:
                     self.notes_text.current_file = new_filename
                     self.select_file_by_name(new_filename)
+                self._rename_window()
 
     def select_file_by_name(self, filename):
         self.files_view.selectionModel().selectionChanged.disconnect(

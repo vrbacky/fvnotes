@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import QAction, QMenuBar, QToolBar
 
 class MenuBar(QMenuBar):
 
+    create_note = pyqtSignal()
     save_note = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -21,6 +22,7 @@ class MenuBar(QMenuBar):
 
         new_note = QAction('&New Note', self)
         new_note.setShortcut('Ctrl+N')
+        new_note.triggered.connect(self.create_note.emit)
 
         save_note = QAction('&Save_Note', self)
         save_note.setShortcut('Ctrl+S')
@@ -41,6 +43,7 @@ class MenuBar(QMenuBar):
 
 class ToolBar(QToolBar):
 
+    create_note = pyqtSignal()
     save_note = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -56,6 +59,7 @@ class ToolBar(QToolBar):
             "New",
             self)
         self.new_action.setStatusTip("Create a new note.")
+        self.new_action.triggered.connect(self.create_note.emit)
 
         self.save_action = QAction(
             QIcon(path.join(path_to_icon_dir, "save_note.png")),
