@@ -323,6 +323,7 @@ class MainWidget(QWidget):
         self.notes_text.text_has_changed = False
 
     def save_note(self, selection_changed=False):
+        cursor_position = self.notes_text.cursor_position
         if (self.notes_text.toPlainText() == '' or
                 not self.notes_text.text_has_changed):
             return 0
@@ -355,6 +356,7 @@ class MainWidget(QWidget):
 
         self.notes_text.text_has_changed = False
         self._rename_window()
+        self.notes_text.cursor_position = cursor_position
 
     def delete_note(self, current_index):
         current_filename = self.get_filename_from_index(current_index)

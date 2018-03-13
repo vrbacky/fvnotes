@@ -91,6 +91,22 @@ class TextEditGuide(QTextEdit):
             self.setPlainText('')
 
     @property
+    def cursor_position(self):
+        """Position of a cursor in the widget
+
+        :type: int
+        :getter: Returns the absolute position of the cursor
+        :setter: Sets the absolute position of the cursor
+        """
+        return self.textCursor().position()
+
+    @cursor_position.setter
+    def cursor_position(self, position):
+        cursor = self.textCursor()
+        cursor.setPosition(position)
+        self.setTextCursor(cursor)
+
+    @property
     def font(self):
         """Font used in the widget
 
