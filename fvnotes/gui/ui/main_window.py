@@ -5,8 +5,7 @@ import os
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox
-
+    QMessageBox, QAction, QMenu
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError
@@ -236,6 +235,9 @@ class MainWidget(QWidget):
         self.files_view.setModel(self.files_proxy)
         self.files_view.setSortingEnabled(True)
         self.files_view.sortByColumn(0, Qt.AscendingOrder)
+        self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.files_view.customContextMenuRequested.connect(
+            self.files_context_menu)
 
         self._hide_unnecessary_columns(self.files_view)
 
@@ -260,6 +262,15 @@ class MainWidget(QWidget):
             self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
+
+    def files_context_menu(self, position):
+        index = self.files_view.indexAt(position)
+
+        menu = QMenu()
+        delete_file_action = QAction("Delete file")
+        delete_file_action.triggered.connect(lambda: self.delete_note(index))
+        menu.addAction(delete_file_action)
+        menu.exec_(self.files_view.viewport().mapToGlobal(position))
 
     def _hide_unnecessary_columns(self, view):
         for column in range(1, 4):
@@ -333,6 +344,26 @@ class MainWidget(QWidget):
             except CannotRenameFileError:
                 pass
 
+    def delete_note(self, current_index):
+        current_filename = self.get_filename_from_index(current_index)
+
+        if self.files_view.indexBelow(current_index).data() is not None:
+            self.files_view.setCurrentIndex(
+                self.files_view.indexBelow(current_index))
+        elif self.files_view.indexAbove(current_index).data() is not None:
+            self.files_view.setCurrentIndex(
+                self.files_view.indexAbove(current_index))
+        else:
+            self.create_note()
+
+        if current_filename != '':
+            was_renamed = QFile(current_filename).remove()
+            if not was_renamed:
+                QMessageBox(
+                    self,
+                    'File Cannot Be Deleted',
+                    'The note file cannot be deleted.')
+
     def file_changed(self):
         self.save_note(selection_changed=True)
 
@@ -372,6 +403,10 @@ class MainWidget(QWidget):
                     self.notes_text.current_file = new_filename
                     self.select_file_by_name(new_filename)
                 self._rename_window()
+
+    def get_filename_from_index(self, index):
+        model_index = self.files_proxy.mapToSource(index)
+        return self.files_model.filePath(model_index)
 
     def select_file_by_name(self, filename):
         self.files_view.selectionModel().selectionChanged.disconnect(
