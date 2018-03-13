@@ -173,6 +173,8 @@ class MainWidget(QWidget):
         self.parent = parent
 
         self.ROOT_DIR = '/home/fv-user/notes'
+        self._note_hash = None
+        self.note_has_changed = False
 
         self.main_layout = QHBoxLayout()
         self.main_splitter = QSplitter()
@@ -258,6 +260,7 @@ class MainWidget(QWidget):
         self._rename_window(self.parent.window_title)
         self.timer.singleShot(1, self.jump_to_index_bellow)
 
+        self.notes_text.textChanged.connect(self.note_changed)
         self.directories_view.selectionModel().selectionChanged.connect(
             self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
@@ -294,9 +297,13 @@ class MainWidget(QWidget):
 
     def _rename_window(self, title=None):
         if title is None:
-            short_current_file = self.notes_text.current_file.replace(
-                self.ROOT_DIR, '')
-            title = (f'{self.parent.window_title} - {short_current_file}')
+            title = self.parent.window_title
+            if self.notes_text.current_file is not None:
+                short_current_file = self.notes_text.current_file.replace(
+                    self.ROOT_DIR, '')
+                title += f' - {short_current_file}'
+            if self.notes_text.text_has_changed:
+                title = f'{title}*'
         self.parent.setWindowTitle(title)
 
     def _dir_changed(self):
@@ -313,10 +320,13 @@ class MainWidget(QWidget):
         self.notes_text.current_file = None
         self.parent.setWindowTitle(self.parent.window_title)
         self.notes_text.setFocus()
+        self.notes_text.text_has_changed = False
 
     def save_note(self, selection_changed=False):
-        if self.notes_text.toPlainText() == '':
+        if (self.notes_text.toPlainText() == '' or
+                not self.notes_text.text_has_changed):
             return 0
+
         if self.notes_text.current_file is None:
             directory = self._get_current_dir()
             first_line = self.notes_text.first_line
@@ -336,13 +346,15 @@ class MainWidget(QWidget):
                 self.notes_text.current_file = new_filename
                 self._rename_window()
                 self.select_file_by_name(new_filename)
-
         else:
             self.notes_text.save_file()
             try:
                 self._rename_note(selection_changed)
             except CannotRenameFileError:
                 pass
+
+        self.notes_text.text_has_changed = False
+        self._rename_window()
 
     def delete_note(self, current_index):
         current_filename = self.get_filename_from_index(current_index)
@@ -364,6 +376,9 @@ class MainWidget(QWidget):
                     'File Cannot Be Deleted',
                     'The note file cannot be deleted.')
 
+    def note_changed(self):
+        self._rename_window()
+
     def file_changed(self):
         self.save_note(selection_changed=True)
 
@@ -371,7 +386,7 @@ class MainWidget(QWidget):
         current_index = self.files_proxy.mapToSource(current_index)
         self.notes_text.current_file = self.files_model.filePath(
             current_index)
-
+        self.notes_text.text_has_changed = False
         self._rename_window()
 
     def _rename_note(self, selection_changed=True):

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import hashlib
 import string
+
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase
 from PyQt5.QtWidgets import QTextEdit, QMessageBox
@@ -47,6 +49,7 @@ class TextEditGuide(QTextEdit):
         self._initialization = True
         self._current_file = None
         self.parent = parent
+        self._unchanged_note_hash = None
 
     def _initialize_gui(self):
         self.font = self.currentFont()
@@ -124,6 +127,22 @@ class TextEditGuide(QTextEdit):
             for position in self.convert_to_tuple(positions)]
         self.update()
 
+    @property
+    def text_has_changed(self):
+        """Has a text in the widget been changed since the last reset?
+
+        :type: bool
+        :getter: Returns True if the widget contains changes since the last
+                 reset
+        :setter: Resets status when set to False
+        """
+        return self.get_current_text_hash() != self._unchanged_note_hash
+
+    @text_has_changed.setter
+    def text_has_changed(self, has_changed):
+        if has_changed is False:
+            self._unchanged_note_hash = self.get_current_text_hash()
+
     def save_file(self, file_path=None):
         if file_path is None:
             file_path = self._current_file
@@ -137,6 +156,10 @@ class TextEditGuide(QTextEdit):
                 self,
                 'File Save Failed',
                 f'Cannot write to the file\n\n{err}')
+
+    def get_current_text_hash(self):
+        return hashlib.sha256(
+            self.toPlainText().encode('utf-8')).digest()
 
     def paintEvent(self, event):
         if self._initialization:
