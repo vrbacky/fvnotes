@@ -181,7 +181,7 @@ class MainWidget(QWidget):
 
         self.files_splitter = QSplitter()
         self.directories_model = QFileSystemModel()
-        self.root_index = self.directories_model.setRootPath(self.ROOT_DIR)
+        self.directories_proxy = QSortFilterProxyModel()
         self.directories_view = QTreeView(headerHidden=True)
         self.files_model = QFileSystemModel()
         self.files_proxy = QSortFilterProxyModel()
@@ -226,8 +226,15 @@ class MainWidget(QWidget):
 
         self.directories_model.setFilter(
             QDir.Dirs | QDir.NoDotAndDotDot | QDir.Name)
-        self.directories_view.setModel(self.directories_model)
+        self.directories_proxy.setSourceModel(self.directories_model)
+        self.directories_proxy.setDynamicSortFilter(True)
+        self.directories_view.setModel(self.directories_proxy)
+        directories_model_index = self.directories_model.setRootPath(
+            self.ROOT_DIR)
+        self.root_index = self.directories_proxy.mapFromSource(
+            directories_model_index)
         self.directories_view.setRootIndex(self.root_index)
+
         self._hide_unnecessary_columns(self.directories_view)
 
         self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
@@ -292,8 +299,9 @@ class MainWidget(QWidget):
             self.files_view.hideColumn(0)
 
     def _get_current_dir(self):
-        current_index = self.directories_view.selectionModel().currentIndex()
-        return self.directories_model.filePath(current_index)
+        proxy_index = self.directories_view.selectionModel().currentIndex()
+        model_index = self.directories_proxy.mapToSource(proxy_index)
+        return self.directories_model.filePath(model_index)
 
     def _rename_window(self, title=None):
         if title is None:
