@@ -5,7 +5,7 @@ import os
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox, QAction, QMenu
+    QMessageBox, QAction, QMenu, QInputDialog
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError
@@ -228,11 +228,15 @@ class MainWidget(QWidget):
             QDir.Dirs | QDir.NoDotAndDotDot | QDir.Name)
         self.directories_proxy.setSourceModel(self.directories_model)
         self.directories_proxy.setDynamicSortFilter(True)
-        self.directories_view.setModel(self.directories_proxy)
         directories_model_index = self.directories_model.setRootPath(
             self.ROOT_DIR)
         self.root_index = self.directories_proxy.mapFromSource(
             directories_model_index)
+        self.directories_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.directories_view.customContextMenuRequested.connect(
+            self.dirs_context_menu)
+        self.directories_view.setRootIsDecorated(True)
+        self.directories_view.setModel(self.directories_proxy)
         self.directories_view.setRootIndex(self.root_index)
 
         self._hide_unnecessary_columns(self.directories_view)
@@ -250,8 +254,6 @@ class MainWidget(QWidget):
 
         self._hide_unnecessary_columns(self.files_view)
 
-        self.directories_view.setCurrentIndex(self.root_index)
-
         self.journal_widget.setLayout(self.journal_layout)
         self.journal_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -265,13 +267,14 @@ class MainWidget(QWidget):
         self.journal_calendar_layout.addStretch()
 
         self._rename_window(self.parent.window_title)
-        self.timer.singleShot(1, self.jump_to_index_bellow)
 
         self.notes_text.textChanged.connect(self.note_changed)
         self.directories_view.selectionModel().selectionChanged.connect(
             self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
+
+        self.timer.singleShot(1, self.select_first_dir)
 
     def files_context_menu(self, position):
         index = self.files_view.indexAt(position)
@@ -281,6 +284,26 @@ class MainWidget(QWidget):
         delete_file_action.triggered.connect(lambda: self.delete_note(index))
         menu.addAction(delete_file_action)
         menu.exec_(self.files_view.viewport().mapToGlobal(position))
+
+    def dirs_context_menu(self, position):
+        index = self.directories_view.indexAt(position)
+
+        menu = QMenu()
+        create_dir_action = QAction("Create a directory")
+        create_dir_action.triggered.connect(
+            lambda: self._create_dir(parent_index=index))
+        delete_dir_action = QAction("Delete a directory")
+        delete_dir_action.triggered.connect(lambda: self.delete_dir(index))
+        menu.addAction(create_dir_action)
+        menu.addAction(delete_dir_action)
+        menu.exec_(self.directories_view.viewport().mapToGlobal(position))
+
+    def select_first_dir(self):
+        """Select the first child of the root directory"""
+        first_child_index = self.directories_model.index(
+            self.ROOT_DIR).child(0, 0)
+        proxy_index = self.directories_proxy.mapFromSource(first_child_index)
+        self.directories_view.setCurrentIndex(proxy_index)
 
     def _hide_unnecessary_columns(self, view):
         for column in range(1, 4):
@@ -381,7 +404,7 @@ class MainWidget(QWidget):
         if current_filename != '':
             was_renamed = QFile(current_filename).remove()
             if not was_renamed:
-                QMessageBox(
+                QMessageBox.critical(
                     self,
                     'File Cannot Be Deleted',
                     'The note file cannot be deleted.')
@@ -391,7 +414,6 @@ class MainWidget(QWidget):
 
     def file_changed(self):
         self.save_note(selection_changed=True)
-
         current_index = self.files_view.currentIndex()
         current_index = self.files_proxy.mapToSource(current_index)
         self.notes_text.current_file = self.files_model.filePath(
@@ -433,12 +455,148 @@ class MainWidget(QWidget):
         model_index = self.files_proxy.mapToSource(index)
         return self.files_model.filePath(model_index)
 
-    def select_file_by_name(self, filename):
+    def _create_dir(self,
+                    *args,
+                    parent_index=None,
+                    title='Create a directory',
+                    **kwargs):
+        """
+        Create a directory
+
+        Directory will be created as a subdirectory, if index of an existing
+        directory is provided. It will be created in the root directory
+        otherwise.
+
+        Parameters
+        ----------
+        parent_index : QModelIndex
+            Index of the parent directory
+        title : str
+            Title of the input dialog
+
+        Returns
+        -------
+        bool
+            True is returned, if the directory is created. False otherwise.
+        """
+        current_index = self.directories_view.currentIndex()
+        if parent_index is not None:
+            selected_dir = self.get_dir_from_index(parent_index)
+            if selected_dir == '':
+                self.directories_view.clearSelection()
+                selected_dir = self.ROOT_DIR
+        else:
+            selected_dir = self.ROOT_DIR
+        dirname, is_ok = QInputDialog.getText(self,
+                                              title,
+                                              'Directory name:')
+        if is_ok:
+            dir_path = os.path.join(selected_dir, dirname)
+            was_created = QDir().mkdir(dir_path)
+            if not was_created:
+                QMessageBox.critical(self,
+                                     'Directory Cannot Be Created',
+                                     'The directory cannot be created.')
+                self.directories_view.setCurrentIndex(current_index)
+            else:
+                self.select_dir_by_path(dir_path)
+        else:
+            was_created = False
+
+        return is_ok and was_created
+
+    def _create_first_dir(self):
+        """Create the first directory, if all have been were deleted"""
+        while True:
+            if self._create_dir(title='Create the First Directory'):
+                break
+
+    def delete_dir(self, current_index):
+        """Delete a directory specified by the index
+
+        A directory below the deleted one will be selected. A directory
+        above the deleted one will selected, if there is no directory
+        bellow it. Input dialog requesting name of the new directory
+        will appear, if the deleted directory was the last one.
+
+        Parameters
+        ----------
+        current_index : QModelIndex
+            Index of the directory to be deleted
+        """
+        current_dir = self.get_dir_from_index(current_index)
+        if current_dir != '':
+            QDir(current_dir).removeRecursively()
+        if self.directories_view.indexBelow(current_index).data() is not None:
+            self.directories_view.setCurrentIndex(
+                self.directories_view.indexBelow(current_index))
+        elif self.directories_view.indexAbove(current_index).data()\
+                is not None:
+            self.directories_view.setCurrentIndex(
+                self.directories_view.indexAbove(current_index))
+        else:
+            self._create_first_dir()
+
+        if current_dir != '':
+            was_removed = QDir(current_dir).removeRecursively()
+            if not was_removed:
+                QMessageBox(
+                    self,
+                    'Directory Cannot Be Deleted',
+                    'The directory cannot be deleted.')
+
+    def get_dir_from_index(self, index):
+        """Get an absolute path to the directory under the index
+
+        Parameters
+        ----------
+        index : QModelIndex
+            Index of the directory
+
+        Returns
+        -------
+        str
+            Absolute path of the directory
+        """
+        model_index = self.directories_proxy.mapToSource(index)
+        return self.directories_model.filePath(model_index)
+
+    def _select_item_by_path(self, path, widget):
+        """Select the item of a QTreeView widget provided as a path
+
+        Parameters
+        ----------
+        path : str
+            An absolute path to the item
+        widget : QTreeView
+            A widget, where the item should be selected
+        """
+        proxy_model = widget.model()
+        model = proxy_model.sourceModel()
+        original_index = model.index(path)
+        original_proxy_index = proxy_model.mapFromSource(original_index)
+        widget.setCurrentIndex(original_proxy_index)
+
+    def select_dir_by_path(self, dir_path):
+        """Select a directory in the directories_view widget
+
+        Parameters
+        ----------
+        dir_path : str
+            An absolute path to the directory
+        """
+        self._select_item_by_path(dir_path, self.directories_view)
+
+    def select_file_by_name(self, file_path):
+        """Select a file in the files_view widget
+
+        Parameters
+        ----------
+        file_path : str
+            An absolute path to the file
+        """
         self.files_view.selectionModel().selectionChanged.disconnect(
             self.file_changed)
-        original_index = self.files_model.index(filename)
-        original_proxy_index = self.files_proxy.mapFromSource(
-            original_index)
-        self.files_view.setCurrentIndex(original_proxy_index)
+        self._select_item_by_path(file_path, self.files_view)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
