@@ -82,6 +82,7 @@ class TextEditGuide(QTextEdit):
             try:
                 with open(file, 'rt') as f:
                     self.setPlainText(f.read())
+                    self.text_has_changed = False
             except Exception as err:
                 QMessageBox.critical(
                     self,

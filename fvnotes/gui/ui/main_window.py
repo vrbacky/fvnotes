@@ -176,8 +176,8 @@ class MainWidget(QWidget):
         self.parent = parent
 
         self.ROOT_DIR = '/home/fv-user/notes'
-        self._note_hash = None
-        self.note_has_changed = False
+        self._note_hash = None  # TODO: Delete it during a cleanup
+        self.note_has_changed = False  # TODO: Delete it during a cleanup
 
         self.main_layout = QHBoxLayout()
         self.main_splitter = QSplitter()
@@ -645,12 +645,16 @@ class MainWidget(QWidget):
         self.journal_text.cursor_position = cursor_position
 
     def save_journal(self):
+        """Save the journal, if it has changed"""
+        if not self.journal_text.text_has_changed:
+            return 0
         self.journal_text.save_file()
+        self.journal_text.text_has_changed = False
 
     def journal_file_changed(self):
         """Save an opened journal file and open the selected one"""
         if self.journal_text.current_file is not None:
-            self.journal_text.save_file()
+            self.save_journal()
         self.open_journal()
 
     def _create_journal_dir(self):
