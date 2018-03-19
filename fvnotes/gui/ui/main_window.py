@@ -72,6 +72,8 @@ class MainWindow(QMainWindow):
         self.tool_bar.create_note.connect(self.main_widget.create_note)
         self.menu_bar.save_note.connect(self.main_widget.save_note)
         self.tool_bar.save_note.connect(self.main_widget.save_note)
+        self.menu_bar.save_journal.connect(self.main_widget.save_journal)
+        self.tool_bar.save_journal.connect(self.main_widget.save_journal)
 
         self.show()
 
@@ -165,6 +167,7 @@ class MainWindow(QMainWindow):
                 self.main_widget._rename_note()
             except CannotRenameFileError:
                 event.ignore()
+        self.main_widget.save_journal()
 
 
 class MainWidget(QWidget):
@@ -267,12 +270,16 @@ class MainWidget(QWidget):
         self.journal_calendar_layout.addStretch()
 
         self._rename_window(self.parent.window_title)
+        self._create_journal_dir()
+        self.open_journal(dont_set_focus=True)
 
         self.notes_text.textChanged.connect(self.note_changed)
         self.directories_view.selectionModel().selectionChanged.connect(
             self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
+        self.journal_calendar.selectionChanged.connect(
+            self.journal_file_changed)
 
         self.timer.singleShot(1, self.select_first_dir)
 
@@ -603,3 +610,51 @@ class MainWidget(QWidget):
         self._select_item_by_path(file_path, self.files_view)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
+
+    def open_journal(self, dont_set_focus=False):
+        """ Open a journal file, create a new one, if it doesn't exist
+
+        Parameters
+        ----------
+        dont_set_focus : bool
+            It doesn't set focus to journal_text widget, if it's True.
+        """
+        date = self.journal_calendar.selectedDate()
+        year, month, day = (f'{date.year():0>4}',
+                            f'{date.month():0>2}',
+                            f'{date.day():0>2}',
+                            )
+        path_to_journal = os.path.join(self.ROOT_DIR,
+                                       '.journal__',
+                                       year,
+                                       month)
+        if not QDir().exists(path_to_journal):
+            QDir().mkpath(path_to_journal)
+        journal_name = f'{year}-{month}-{day}.md'
+        journal_file_path = os.path.join(path_to_journal, journal_name)
+        cursor_position = 0
+        if not QFile.exists(journal_file_path):
+            with open(journal_file_path, 'wt') as file:
+                file.write(f'{year}-{month}-{day}\n==========\n\n')
+            cursor_position = 23
+
+        self.journal_text.current_file = journal_file_path
+
+        if not dont_set_focus:
+            self.journal_text.setFocus()
+        self.journal_text.cursor_position = cursor_position
+
+    def save_journal(self):
+        self.journal_text.save_file()
+
+    def journal_file_changed(self):
+        """Save an opened journal file and open the selected one"""
+        if self.journal_text.current_file is not None:
+            self.journal_text.save_file()
+        self.open_journal()
+
+    def _create_journal_dir(self):
+        """Create a journal directory, if it doesn't exist."""
+        calendar_dir = os.path.join(self.ROOT_DIR, '.journal__')
+        if not QDir().exists(calendar_dir):
+            QDir().mkpath(calendar_dir)

@@ -11,6 +11,7 @@ class MenuBar(QMenuBar):
 
     create_note = pyqtSignal()
     save_note = pyqtSignal()
+    save_journal = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -24,9 +25,13 @@ class MenuBar(QMenuBar):
         new_note.setShortcut('Ctrl+N')
         new_note.triggered.connect(self.create_note.emit)
 
-        save_note = QAction('&Save_Note', self)
+        save_note = QAction('&Save Note', self)
         save_note.setShortcut('Ctrl+S')
         save_note.triggered.connect(self.save_note.emit)
+
+        save_journal = QAction('Save &Journal', self)
+        save_journal.setShortcut('Ctrl+J')
+        save_journal.triggered.connect(self.save_journal.emit)
 
         quit_action = QAction('&Quit', self)
         quit_action.setShortcut('Ctrl+Q')
@@ -36,6 +41,7 @@ class MenuBar(QMenuBar):
 
         file.addAction(new_note)
         file.addAction(save_note)
+        file.addAction(save_journal)
         file.addAction(quit_action)
 
         edit.addAction(preferences_action)
@@ -45,6 +51,7 @@ class ToolBar(QToolBar):
 
     create_note = pyqtSignal()
     save_note = pyqtSignal()
+    save_journal = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -61,12 +68,20 @@ class ToolBar(QToolBar):
         self.new_action.setStatusTip("Create a new note.")
         self.new_action.triggered.connect(self.create_note.emit)
 
-        self.save_action = QAction(
+        self.save_note_action = QAction(
             QIcon(path.join(path_to_icon_dir, "save_note.png")),
             "Save",
             self)
-        self.save_action.setStatusTip("Save the note.")
-        self.save_action.triggered.connect(self.save_note.emit)
+        self.save_note_action.setStatusTip("Save the note.")
+        self.save_note_action.triggered.connect(self.save_note.emit)
+
+        self.save_journal_action = QAction(
+            QIcon(path.join(path_to_icon_dir, "save_journal.png")),
+            "Save",
+            self)
+        self.save_journal_action.setStatusTip("Save the journal.")
+        self.save_journal_action.triggered.connect(self.save_journal.emit)
 
         self.addAction(self.new_action)
-        self.addAction(self.save_action)
+        self.addAction(self.save_note_action)
+        self.addAction(self.save_journal_action)
