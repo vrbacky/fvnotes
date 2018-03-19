@@ -309,6 +309,7 @@ class MainWidget(QWidget):
         for column in range(1, 4):
             view.setColumnHidden(column, True)
 
+    # TODO: Delete it during a cleanup
     def jump_to_index_bellow(self, index=None):
         if index is None:
             index = self.root_index
@@ -343,6 +344,8 @@ class MainWidget(QWidget):
         self.files_view.setRootIndex(proxy_index)
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
+        self.files_model.setFilter(QDir.NoFilter)
+        self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
 
     def create_note(self):
         self.files_view.clearSelection()
