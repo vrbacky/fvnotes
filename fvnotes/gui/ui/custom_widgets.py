@@ -3,9 +3,12 @@
 import hashlib
 import string
 
-from PyQt5.QtCore import pyqtSignal
+import os
+from PyQt5.QtCore import pyqtSignal, QFile
 from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase
 from PyQt5.QtWidgets import QTextEdit, QMessageBox
+
+from fvnotes.exceptions import CannotSaveFileError
 
 
 class TextEditGuide(QTextEdit):
@@ -160,9 +163,30 @@ class TextEditGuide(QTextEdit):
         if has_changed is False:
             self._unchanged_note_hash = self.get_current_text_hash()
 
-    def save_file(self, file_path=None):
+    def save_file(self, file_path=None, check_file_exists=False):
+        """Save text in the widget
+
+        Text will be saved to the file provided as a parameter.
+        Raises CannotSaveFileError, if the file cannot be saved.
+
+        Parameters
+        ----------
+        file_path : str
+            Absolute path of the saved file
+        check_file_exists : bool
+            Existing file will not be rewritten and message box will be shown,
+            if it is set to True. (default: False)
+        """
         if file_path is None:
             file_path = self._current_file
+
+        if check_file_exists:
+            if QFile(file_path).exists():
+                QMessageBox.critical(
+                    self,
+                    'File Cannot Be Saved',
+                    'The file cannot be saved. Try to change its first line.')
+                raise CannotSaveFileError
 
         text = self.toPlainText()
         try:
@@ -173,10 +197,45 @@ class TextEditGuide(QTextEdit):
                 self,
                 'File Save Failed',
                 f'Cannot write to the file\n\n{err}')
+            raise CannotSaveFileError
+        return True
 
     def get_current_text_hash(self):
         return hashlib.sha256(
             self.toPlainText().encode('utf-8')).digest()
+
+    def create_abs_file_path(self, directory=None, filename=None):
+        """Create absolute path to a file
+
+        Creates absolute path from provided path to a directory and a filename.
+        Omitted parameters will be substituted with strings parsed from
+        path of the opened file and text of the widget.
+
+        Parameters
+        ----------
+        directory : str
+            Absolute path to the directory containing the file. If omitted,
+            directory of the current_file is used.
+        filename : str
+            Name of the file. If omitted, the first line of the text will be
+            used and .md extension will be added. Empty line will be
+            substituted with _ character.
+
+        Returns
+        -------
+        str
+            Absolute path to the file
+        """
+        if filename is None:
+            first_line = self.first_line
+            if first_line == '':
+                first_line = '_'
+            filename = f'{self.convert_text_to_filename(first_line)}.md'
+
+        if directory is None:
+            directory = os.path.dirname(self.current_file)
+
+        return os.path.join(directory, filename)
 
     def paintEvent(self, event):
         if self._initialization:

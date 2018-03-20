@@ -5,5 +5,9 @@ class FVnotesError(Exception):
     pass
 
 
+class CannotSaveFileError(FVnotesError):
+    pass
+
+
 class CannotRenameFileError(FVnotesError):
     pass

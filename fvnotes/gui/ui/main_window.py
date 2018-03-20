@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QMessageBox, QAction, QMenu, QInputDialog
 
 from fvnotes import AUTHOR, NAME, VERSION
-from fvnotes.exceptions import CannotRenameFileError
+from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 from fvnotes.gui.ui.custom_widgets import TextEditGuide
 
@@ -367,37 +367,29 @@ class MainWidget(QWidget):
     def save_note(self, selection_changed=False):
         cursor_position = self.notes_text.cursor_position
         if not self.notes_text.text_has_changed:
-            return 0
+            return True
 
         if self.notes_text.current_file is None:
-            directory = self._get_current_dir()
-            first_line = self.notes_text.first_line
-            if first_line == '':
-                first_line = '_'
-            new_filename = os.path.join(
-                directory,
-                self.notes_text.convert_text_to_filename(first_line) + '.md')
-            if QFile(new_filename).exists():
-                QMessageBox.critical(
-                    self,
-                    'File Cannot Be Saved',
-                    'The note file cannot be saved. Try to change '
-                    'the first line of the note.')
-            else:
-                self.notes_text.save_file(new_filename)
-                self.notes_text.current_file = new_filename
-                self._rename_window()
-                self.select_file_by_name(new_filename)
+            new_filename = self.notes_text.create_abs_file_path(
+                directory=self._get_current_dir())
+            try:
+                self.notes_text.save_file(new_filename, check_file_exists=True)
+            except CannotSaveFileError:
+                return
+            self.notes_text.current_file = new_filename
+            self._rename_window()
+            self.select_file_by_name(new_filename)
         else:
             self.notes_text.save_file()
             try:
                 self._rename_note(selection_changed)
             except CannotRenameFileError:
-                pass
+                return False
 
         self.notes_text.text_has_changed = False
         self._rename_window()
         self.notes_text.cursor_position = cursor_position
+        return True
 
     def delete_note(self, current_index):
         current_filename = self.get_filename_from_index(current_index)
@@ -423,26 +415,18 @@ class MainWidget(QWidget):
         self._rename_window()
 
     def file_changed(self):
-        self.save_note(selection_changed=True)
-        current_index = self.files_view.currentIndex()
-        current_index = self.files_proxy.mapToSource(current_index)
-        self.notes_text.current_file = self.files_model.filePath(
-            current_index)
-        self.notes_text.text_has_changed = False
-        self._rename_window()
+        if self.save_note(selection_changed=True):
+            current_index = self.files_view.currentIndex()
+            current_index = self.files_proxy.mapToSource(current_index)
+            self.notes_text.current_file = self.files_model.filePath(
+                current_index)
+            self.notes_text.text_has_changed = False
+            self._rename_window()
 
     def _rename_note(self, selection_changed=True):
         selected_file_index = self.files_view.currentIndex()
         current_file = self.notes_text.current_file
-        dir_of_current_file = os.path.dirname(current_file)
-
-        first_line = self.notes_text.first_line
-        if first_line == '':
-            first_line = '_'
-
-        new_filename = os.path.join(
-            dir_of_current_file,
-            self.notes_text.convert_text_to_filename(first_line) + '.md')
+        new_filename = self.notes_text.create_abs_file_path()
 
         if new_filename != current_file:
             if not QFile(current_file).rename(new_filename):
