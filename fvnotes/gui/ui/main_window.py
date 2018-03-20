@@ -272,6 +272,7 @@ class MainWidget(QWidget):
         self._rename_window(self.parent.window_title)
         self._create_journal_dir()
         self.open_journal(dont_set_focus=True)
+        self.notes_text.text_has_changed = False
 
         self.notes_text.textChanged.connect(self.note_changed)
         self.directories_view.selectionModel().selectionChanged.connect(
@@ -365,8 +366,7 @@ class MainWidget(QWidget):
 
     def save_note(self, selection_changed=False):
         cursor_position = self.notes_text.cursor_position
-        if (self.notes_text.toPlainText() == '' or
-                not self.notes_text.text_has_changed):
+        if not self.notes_text.text_has_changed:
             return 0
 
         if self.notes_text.current_file is None:
