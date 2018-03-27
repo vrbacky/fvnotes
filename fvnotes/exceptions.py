@@ -11,3 +11,7 @@ class CannotSaveFileError(FVnotesError):
 
 class CannotRenameFileError(FVnotesError):
     pass
+
+
+class NotFileOrDirError(FVnotesError):
+    pass

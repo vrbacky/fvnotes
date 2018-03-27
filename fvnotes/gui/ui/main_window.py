@@ -8,7 +8,9 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
     QMessageBox, QAction, QMenu, QInputDialog
 
 from fvnotes import AUTHOR, NAME, VERSION
-from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError
+from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
+    NotFileOrDirError
+from fvnotes.path import rmdir_recursive
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 from fvnotes.gui.ui.custom_widgets import TextEditGuide
 
@@ -68,8 +70,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.status_bar.showMessage('StatusBar')
 
-        self.menu_bar.create_note.connect(self.main_widget.create_note)
-        self.tool_bar.create_note.connect(self.main_widget.create_note)
+        self.menu_bar.create_note.connect(
+            self.main_widget.save_and_create_note)
+        self.tool_bar.create_note.connect(
+            self.main_widget.save_and_create_note)
         self.menu_bar.save_note.connect(self.main_widget.save_note)
         self.tool_bar.save_note.connect(self.main_widget.save_note)
         self.menu_bar.save_journal.connect(self.main_widget.save_journal)
@@ -355,10 +359,14 @@ class MainWidget(QWidget):
         self.files_model.setFilter(QDir.NoFilter)
         self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
 
-    def create_note(self):
-        self.files_view.clearSelection()
+    def save_and_create_note(self):
         if self.notes_text.current_file is not None:
             self.save_note()
+        self.create_note()
+
+    def create_note(self, clear_selection=True):
+        if clear_selection:
+            self.files_view.clearSelection()
         self.notes_text.current_file = None
         self.parent.setWindowTitle(self.parent.window_title)
         self.notes_text.setFocus()
@@ -496,7 +504,6 @@ class MainWidget(QWidget):
                 self.select_dir_by_path(dir_path)
         else:
             was_created = False
-
         return is_ok and was_created
 
     def _create_first_dir(self):
@@ -505,39 +512,51 @@ class MainWidget(QWidget):
             if self._create_dir(title='Create the First Directory'):
                 break
 
-    def delete_dir(self, current_index):
+    def delete_dir(self, index):
         """Delete a directory specified by the index
 
-        A directory below the deleted one will be selected. A directory
-        above the deleted one will selected, if there is no directory
-        bellow it. Input dialog requesting name of the new directory
-        will appear, if the deleted directory was the last one.
+        A sibling directory below the deleted one will be selected. A sibling
+        directory above the deleted one will be selected, if there is no
+        directory below it. A parent directory will be selected,
+        if the deleted one has no siblings. Input dialog requesting a name
+        of the new directory will appear, if the deleted directory was
+        the last one in the notes directory.
 
         Parameters
         ----------
-        current_index : QModelIndex
-            Index of the directory to be deleted
+        index : QModelIndex
+            Index of the directory to be deleted.
         """
-        current_dir = self.get_dir_from_index(current_index)
-        if current_dir != '':
-            QDir(current_dir).removeRecursively()
-        if self.directories_view.indexBelow(current_index).data() is not None:
-            self.directories_view.setCurrentIndex(
-                self.directories_view.indexBelow(current_index))
-        elif self.directories_view.indexAbove(current_index).data()\
-                is not None:
-            self.directories_view.setCurrentIndex(
-                self.directories_view.indexAbove(current_index))
-        else:
-            self._create_first_dir()
+        current_directory = self.get_dir_from_index(index)
+        new_index = self.index_of_sibling_or_parent(index)
+        if self.get_dir_from_index(new_index) == self.ROOT_DIR:
+            self.files_model.setNameFilters([''])
+            self.files_model.setNameFilterDisables(False)
 
-        if current_dir != '':
-            was_removed = QDir(current_dir).removeRecursively()
-            if not was_removed:
-                QMessageBox(
+            self.directories_view.setCurrentIndex(new_index)
+            rmdir_recursive(current_directory,
+                            dir_model=self.directories_model)
+            while True:
+                if self._create_dir():
+                    break
+
+            self.files_model.setNameFilters([])
+            self.files_model.setNameFilterDisables(True)
+        else:
+            self.directories_view.setCurrentIndex(new_index)
+            try:
+                rmdir_recursive(current_directory,
+                                dir_model=self.directories_model)
+            except NotFileOrDirError:
+                QMessageBox.critical(
                     self,
-                    'Directory Cannot Be Deleted',
-                    'The directory cannot be deleted.')
+                    'Cannot Be Deleted',
+                    'The selected item is not a file nor a directory.')
+                self.select_first_dir()
+
+        current_note = self.notes_text.current_file
+        if current_note is not None and not os.path.exists(current_note):
+            self.create_note(clear_selection=False)
 
     def get_dir_from_index(self, index):
         """Get an absolute path to the directory under the index
@@ -646,3 +665,27 @@ class MainWidget(QWidget):
         calendar_dir = os.path.join(self.ROOT_DIR, '.journal__')
         if not QDir().exists(calendar_dir):
             QDir().mkpath(calendar_dir)
+
+    @staticmethod
+    def index_of_sibling_or_parent(index):
+        """Return index of an item bellow, item above or parent
+
+        Parameters
+        ----------
+        index : QModelIndex
+            Index of an item whose sibling or parent should be returned.
+
+        Returns
+        -------
+        QModelIndex
+            Index of an item bellow, item above or parent item of the item
+            specified with the index parameter.
+        """
+        my_row, my_column = index.row(), index.column()
+        new_index = index.sibling(my_row + 1, my_column)
+        if new_index.row() >= 0:
+            return new_index
+        new_index = index.sibling(my_row - 1, my_column)
+        if new_index.row() >= 0:
+            return new_index
+        return index.parent()
