@@ -356,11 +356,10 @@ class MainWidget(QWidget):
         self.files_view.setRootIndex(proxy_index)
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
-        self.files_model.setFilter(QDir.NoFilter)
-        self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
 
     def save_and_create_note(self):
-        if self.notes_text.toPlainText() != '' or self.notes_text.current_file is not None:
+        if (self.notes_text.toPlainText() != '' or
+                self.notes_text.current_file is not None):
             self.save_note()
         self.create_note()
 
