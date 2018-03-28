@@ -360,7 +360,7 @@ class MainWidget(QWidget):
         self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
 
     def save_and_create_note(self):
-        if self.notes_text.current_file is not None:
+        if self.notes_text.toPlainText() != '' or self.notes_text.current_file is not None:
             self.save_note()
         self.create_note()
 
