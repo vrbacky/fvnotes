@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+from pathlib import Path
 
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
@@ -356,6 +357,8 @@ class MainWidget(QWidget):
         self.files_view.setRootIndex(proxy_index)
         if self.files_view.isColumnHidden(0):
             self.files_view.setColumnHidden(0, False)
+        self.files_model.setFilter(QDir.NoFilter)
+        self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
 
     def save_and_create_note(self):
         if (self.notes_text.toPlainText() != '' or
@@ -364,7 +367,13 @@ class MainWidget(QWidget):
         self.create_note()
 
     def create_note(self, clear_selection=True):
-        if clear_selection:
+        model_index = self.files_proxy.mapToSource(
+            self.files_view.currentIndex())
+        note_abspath = self.files_model.filePath(model_index)
+        is_file = os.path.isfile(note_abspath)
+        is_in_notes = Path(self.ROOT_DIR) in Path(note_abspath).parents
+
+        if clear_selection and is_file and is_in_notes:
             self.files_view.clearSelection()
         self.notes_text.current_file = None
         self.parent.setWindowTitle(self.parent.window_title)
@@ -382,7 +391,7 @@ class MainWidget(QWidget):
             try:
                 self.notes_text.save_file(new_filename, check_file_exists=True)
             except CannotSaveFileError:
-                return
+                return False
             self.notes_text.current_file = new_filename
             self._rename_window()
             self.select_file_by_name(new_filename)
