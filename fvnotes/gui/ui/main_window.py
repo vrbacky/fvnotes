@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         if self.main_widget.notes_text.current_file is not None:
             self.main_widget.notes_text.save_file()
             try:
-                self.main_widget._rename_note()
+                self.main_widget.rename_note()
             except CannotRenameFileError:
                 event.ignore()
         self.main_widget.save_journal()
@@ -181,8 +181,6 @@ class MainWidget(QWidget):
         self.parent = parent
 
         self.ROOT_DIR = '/home/fv-user/notes'
-        self._note_hash = None  # TODO: Delete it during a cleanup
-        self.note_has_changed = False  # TODO: Delete it during a cleanup
 
         self.main_layout = QHBoxLayout()
         self.main_splitter = QSplitter()
@@ -318,28 +316,6 @@ class MainWidget(QWidget):
         proxy_index = self.directories_proxy.mapFromSource(first_child_index)
         self.directories_view.setCurrentIndex(proxy_index)
 
-    def _hide_unnecessary_columns(self, view):
-        for column in range(1, 4):
-            view.setColumnHidden(column, True)
-
-    # TODO: Delete it during a cleanup
-    def jump_to_index_bellow(self, index=None):
-        if index is None:
-            index = self.root_index
-
-        if self.directories_model.rowCount(index) > 0:
-            self.directories_model.sort(1)
-            self.directories_view.setCurrentIndex(
-                self.directories_view.indexBelow(index))
-        else:
-            self.directories_view.setCurrentIndex(index)
-            self.files_view.hideColumn(0)
-
-    def _get_current_dir(self):
-        proxy_index = self.directories_view.selectionModel().currentIndex()
-        model_index = self.directories_proxy.mapToSource(proxy_index)
-        return self.directories_model.filePath(model_index)
-
     def _rename_window(self, title=None):
         if title is None:
             title = self.parent.window_title
@@ -352,7 +328,7 @@ class MainWidget(QWidget):
         self.parent.setWindowTitle(title)
 
     def _dir_changed(self):
-        source_index = self.files_model.setRootPath(self._get_current_dir())
+        source_index = self.files_model.setRootPath(self.get_path_to_dir())
         proxy_index = self.files_proxy.mapFromSource(source_index)
         self.files_view.setRootIndex(proxy_index)
         if self.files_view.isColumnHidden(0):
@@ -367,9 +343,7 @@ class MainWidget(QWidget):
         self.create_note()
 
     def create_note(self, clear_selection=True):
-        model_index = self.files_proxy.mapToSource(
-            self.files_view.currentIndex())
-        note_abspath = self.files_model.filePath(model_index)
+        note_abspath = self.get_path_to_file()
         is_file = os.path.isfile(note_abspath)
         is_in_notes = Path(self.ROOT_DIR) in Path(note_abspath).parents
 
@@ -387,7 +361,7 @@ class MainWidget(QWidget):
 
         if self.notes_text.current_file is None:
             new_filename = self.notes_text.create_abs_file_path(
-                directory=self._get_current_dir())
+                directory=self.get_path_to_dir())
             try:
                 self.notes_text.save_file(new_filename, check_file_exists=True)
             except CannotSaveFileError:
@@ -398,7 +372,7 @@ class MainWidget(QWidget):
         else:
             self.notes_text.save_file()
             try:
-                self._rename_note(selection_changed)
+                self.rename_note(selection_changed)
             except CannotRenameFileError:
                 return False
 
@@ -408,7 +382,7 @@ class MainWidget(QWidget):
         return True
 
     def delete_note(self, current_index):
-        current_filename = self.get_filename_from_index(current_index)
+        current_filename = self.get_path_to_file(current_index)
 
         if self.files_view.indexBelow(current_index).data() is not None:
             self.files_view.setCurrentIndex(
@@ -432,14 +406,11 @@ class MainWidget(QWidget):
 
     def file_changed(self):
         if self.save_note(selection_changed=True):
-            current_index = self.files_view.currentIndex()
-            current_index = self.files_proxy.mapToSource(current_index)
-            self.notes_text.current_file = self.files_model.filePath(
-                current_index)
+            self.notes_text.current_file = self.get_path_to_file()
             self.notes_text.text_has_changed = False
             self._rename_window()
 
-    def _rename_note(self, selection_changed=True):
+    def rename_note(self, selection_changed=True):
         selected_file_index = self.files_view.currentIndex()
         current_file = self.notes_text.current_file
         new_filename = self.notes_text.create_abs_file_path()
@@ -461,7 +432,43 @@ class MainWidget(QWidget):
                     self.select_file_by_name(new_filename)
                 self._rename_window()
 
-    def get_filename_from_index(self, index):
+    def get_path_to_dir(self, index=None):
+        """Get a path to a directory specified by its index
+
+        Parameters
+        ----------
+        index : QModelIndex
+            Index of the directory in the directories_view widget whose path
+            is returned. A current index of the directories_view widget
+            will be used if not specified.
+
+        Returns
+        -------
+        str
+           Path to the directory specified by the index parameter.
+        """
+        if index is None:
+            index = self.directories_view.currentIndex()
+        model_index = self.directories_proxy.mapToSource(index)
+        return self.directories_model.filePath(model_index)
+
+    def get_path_to_file(self, index=None):
+        """Get a path to a file specified by its index
+
+        Parameters
+        ----------
+        index : QModelIndex
+            Index of the file in the files_view widget whose path is returned.
+            A current index of the files_view widget will be used if not
+            specified.
+
+        Returns
+        -------
+        str
+           Path to the file specified by the index parameter.
+        """
+        if index is None:
+            index = self.files_view.currentIndex()
         model_index = self.files_proxy.mapToSource(index)
         return self.files_model.filePath(model_index)
 
@@ -491,7 +498,7 @@ class MainWidget(QWidget):
         """
         current_index = self.directories_view.currentIndex()
         if parent_index is not None:
-            selected_dir = self.get_dir_from_index(parent_index)
+            selected_dir = self.get_path_to_dir(parent_index)
             if selected_dir == '':
                 self.directories_view.clearSelection()
                 selected_dir = self.ROOT_DIR
@@ -514,12 +521,6 @@ class MainWidget(QWidget):
             was_created = False
         return is_ok and was_created
 
-    def _create_first_dir(self):
-        """Create the first directory, if all have been were deleted"""
-        while True:
-            if self._create_dir(title='Create the First Directory'):
-                break
-
     def delete_dir(self, index):
         """Delete a directory specified by the index
 
@@ -535,9 +536,9 @@ class MainWidget(QWidget):
         index : QModelIndex
             Index of the directory to be deleted.
         """
-        current_directory = self.get_dir_from_index(index)
+        current_directory = self.get_path_to_dir(index)
         new_index = self.index_of_sibling_or_parent(index)
-        if self.get_dir_from_index(new_index) == self.ROOT_DIR:
+        if self.get_path_to_dir(new_index) == self.ROOT_DIR:
             self.files_model.setNameFilters([''])
             self.files_model.setNameFilterDisables(False)
 
@@ -565,22 +566,6 @@ class MainWidget(QWidget):
         current_note = self.notes_text.current_file
         if current_note is not None and not os.path.exists(current_note):
             self.create_note(clear_selection=False)
-
-    def get_dir_from_index(self, index):
-        """Get an absolute path to the directory under the index
-
-        Parameters
-        ----------
-        index : QModelIndex
-            Index of the directory
-
-        Returns
-        -------
-        str
-            Absolute path of the directory
-        """
-        model_index = self.directories_proxy.mapToSource(index)
-        return self.directories_model.filePath(model_index)
 
     def _select_item_by_path(self, path, widget):
         """Select the item of a QTreeView widget provided as a path
@@ -673,6 +658,11 @@ class MainWidget(QWidget):
         calendar_dir = os.path.join(self.ROOT_DIR, '.journal__')
         if not QDir().exists(calendar_dir):
             QDir().mkpath(calendar_dir)
+
+    @staticmethod
+    def _hide_unnecessary_columns(view):
+        for column in range(1, 4):
+            view.setColumnHidden(column, True)
 
     @staticmethod
     def index_of_sibling_or_parent(index):
