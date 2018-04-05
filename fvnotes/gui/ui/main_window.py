@@ -291,7 +291,9 @@ class MainWidget(QWidget):
         index = self.files_view.indexAt(position)
 
         menu = QMenu()
-        delete_file_action = QAction("Delete file")
+        delete_file_action = QAction("Delete the file")
+        if index.data() is None:
+            delete_file_action.setEnabled(False)
         delete_file_action.triggered.connect(lambda: self.delete_note(index))
         menu.addAction(delete_file_action)
         menu.exec_(self.files_view.viewport().mapToGlobal(position))
@@ -303,7 +305,9 @@ class MainWidget(QWidget):
         create_dir_action = QAction("Create a directory")
         create_dir_action.triggered.connect(
             lambda: self._create_dir(parent_index=index))
-        delete_dir_action = QAction("Delete a directory")
+        delete_dir_action = QAction("Delete the directory")
+        if index.data() is None:
+            delete_dir_action.setEnabled(False)
         delete_dir_action.triggered.connect(lambda: self.delete_dir(index))
         menu.addAction(create_dir_action)
         menu.addAction(delete_dir_action)
