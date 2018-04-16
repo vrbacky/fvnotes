@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QTextEdit, QSplitter, \
+from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox, QAction, QMenu, QInputDialog
+    QMessageBox, QAction, QMenu, QInputDialog, QListWidget
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
@@ -41,6 +41,8 @@ VERTICAL_LINE_COLOR = '#353535'
 
 VERTICAL_LINES_NOTES = {40, 80}
 VERTICAL_LINES_JOURNAL = 80
+
+FAVOURITES = set()
 
 
 class MainWindow(QMainWindow):
@@ -128,6 +130,24 @@ class MainWindow(QMainWindow):
             f'font-size: {TREES_FONT_SIZE}pt;'
             f'font: {TREES_FONT};}}'
 
+            f'QListWidget{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR};'
+            f'font-size: {TREES_FONT_SIZE}pt;'
+            f'font: {TREES_FONT};}}'
+
+            f'QListWidget:active{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR};'
+            f'font-size: {TREES_FONT_SIZE}pt;'
+            f'font: {TREES_FONT};}}'
+
+            f'QListWidget:item:selected{{'
+            f'background-color: {WIDGET_BACKGROUND};'
+            f'color: {FONT_COLOR};'
+            f'font-size: {TREES_FONT_SIZE}pt;'
+            f'font: {TREES_FONT};}}'
+
             f'QCalendarWidget QWidget{{'
             f'background-color: {WIDGET_BACKGROUND};'
             f'font-size: {CALENDAR_FONT_SIZE}pt;'
@@ -192,7 +212,7 @@ class MainWidget(QWidget):
         self.files_model = QFileSystemModel()
         self.files_proxy = QSortFilterProxyModel()
         self.files_view = QTreeView(headerHidden=True, rootIsDecorated=False)
-        self.files_favourites = QTextEdit('Favourites - to be implemented')
+        self.favourites = QListWidget()
 
         self.notes_text = TextEditGuide(
             parent=self,
@@ -228,7 +248,7 @@ class MainWidget(QWidget):
         self.files_splitter.setChildrenCollapsible(False)
         self.files_splitter.addWidget(self.directories_view)
         self.files_splitter.addWidget(self.files_view)
-        self.files_splitter.addWidget(self.files_favourites)
+        self.files_splitter.addWidget(self.favourites)
 
         self.directories_model.setFilter(
             QDir.Dirs | QDir.NoDotAndDotDot | QDir.Name)
@@ -260,6 +280,10 @@ class MainWidget(QWidget):
 
         self._hide_unnecessary_columns(self.files_view)
 
+        self.favourites.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.favourites.customContextMenuRequested.connect(
+            self.favourites_context_menu)
+
         self.journal_widget.setLayout(self.journal_layout)
         self.journal_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -282,21 +306,43 @@ class MainWidget(QWidget):
             self._dir_changed)
         self.files_view.selectionModel().selectionChanged.connect(
             self.file_changed)
+        self.favourites.itemClicked.connect(self._favourite_clicked)
         self.journal_calendar.selectionChanged.connect(
             self.journal_file_changed)
 
+        self._update_favourites()
         self.timer.singleShot(1, self.select_first_dir)
 
     def files_context_menu(self, position):
         index = self.files_view.indexAt(position)
+        file_path = self.get_path_to_file(index)
+        if file_path != '':
+            short_file_path = os.path.relpath(file_path, start=self.ROOT_DIR)
 
         menu = QMenu()
-        delete_file_action = QAction("Delete the file")
+        delete_file_action = QAction('Delete the file')
+        add_to_favourites_action = QAction('Add to favourites')
         if index.data() is None:
             delete_file_action.setEnabled(False)
+            add_to_favourites_action.setEnabled(False)
         delete_file_action.triggered.connect(lambda: self.delete_note(index))
+        add_to_favourites_action.triggered.connect(
+            lambda: self._add_to_favourites(short_file_path))
         menu.addAction(delete_file_action)
+        menu.addAction(add_to_favourites_action)
         menu.exec_(self.files_view.viewport().mapToGlobal(position))
+
+    def favourites_context_menu(self, position):
+        item = self.favourites.itemAt(position)
+
+        menu = QMenu()
+        delete_favourite_action = QAction('Remove the file')
+        delete_favourite_action.triggered.connect(
+                lambda: self._remove_from_favourites(item.text()))
+        if item is None:
+            delete_favourite_action.setEnabled(False)
+        menu.addAction(delete_favourite_action)
+        menu.exec_(self.favourites.viewport().mapToGlobal(position))
 
     def dirs_context_menu(self, position):
         index = self.directories_view.indexAt(position)
@@ -325,7 +371,7 @@ class MainWidget(QWidget):
             title = self.parent.window_title
             if self.notes_text.current_file is not None:
                 short_current_file = self.notes_text.current_file.replace(
-                    self.ROOT_DIR, '')
+                    self.ROOT_DIR, '')  # TODO: use relpath
                 title += f' - {short_current_file}'
             if self.notes_text.text_has_changed:
                 title = f'{title}*'
@@ -346,13 +392,16 @@ class MainWidget(QWidget):
             self.save_note()
         self.create_note()
 
-    def create_note(self, clear_selection=True):
+    def clear_file_selection(self):
         note_abspath = self.get_path_to_file()
         is_file = os.path.isfile(note_abspath)
         is_in_notes = Path(self.ROOT_DIR) in Path(note_abspath).parents
-
-        if clear_selection and is_file and is_in_notes:
+        if is_file and is_in_notes:
             self.files_view.clearSelection()
+
+    def create_note(self, clear_selection=True):
+        if clear_selection:
+            self.clear_file_selection()
         self.notes_text.current_file = None
         self.parent.setWindowTitle(self.parent.window_title)
         self.notes_text.setFocus()
@@ -662,6 +711,58 @@ class MainWidget(QWidget):
         calendar_dir = os.path.join(self.ROOT_DIR, '.journal__')
         if not QDir().exists(calendar_dir):
             QDir().mkpath(calendar_dir)
+
+    def _favourite_clicked(self, item):
+        short_path = item.text()
+        if self.save_note(selection_changed=True):
+            abs_path = os.path.join(self.ROOT_DIR, short_path)
+            if os.path.isfile(abs_path):
+                self.select_dir_by_path(os.path.dirname(abs_path))
+                self.select_file_by_name(abs_path)
+                self.file_changed()
+
+            else:
+                QMessageBox.critical(
+                    self,
+                    "File doesn't exist",
+                    (f"File {abs_path} doesn't exist.\n"
+                     "It will be removed from favourites."))
+                self._remove_from_favourites(
+                    self.favourites.currentItem().text())
+
+    def _update_favourites(self):
+        """Clear favourities and fill in paths in FAVOURITIES constant"""
+        self.favourites.clear()
+        for i, item in enumerate(self._sort_paths(FAVOURITES)):
+            self.favourites.addItem(item)
+
+    def _remove_from_favourites(self, path):
+        """Remove the path from the FAVOURITES constant"""
+        FAVOURITES.remove(path)
+        self._update_favourites()
+
+    def _add_to_favourites(self, path):
+        """Add the path to the FAVOURITES constant"""
+        FAVOURITES.add(path)
+        self._update_favourites()
+
+    @staticmethod
+    def _sort_paths(paths):
+        """Hierarchically sort the paths
+
+        Parameters
+        ----------
+        paths : list
+            A list of paths to be sorted.
+
+        Returns
+        -------
+        generator
+            Hierarchically sorted paths.
+        """
+        sorted_paths = sorted(paths, key=lambda path: (os.path.dirname(path),
+                                                       os.path.basename(path)))
+        return (path for path in sorted_paths)
 
     @staticmethod
     def _hide_unnecessary_columns(view):
