@@ -370,8 +370,9 @@ class MainWidget(QWidget):
         if title is None:
             title = self.parent.window_title
             if self.notes_text.current_file is not None:
-                short_current_file = self.notes_text.current_file.replace(
-                    self.ROOT_DIR, '')  # TODO: use relpath
+                short_current_file = os.path.relpath(
+                    self.notes_text.current_file,
+                    start=self.ROOT_DIR)
                 title += f' - {short_current_file}'
             if self.notes_text.text_has_changed:
                 title = f'{title}*'
