@@ -9,6 +9,7 @@ from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase
 from PyQt5.QtWidgets import QTextEdit, QMessageBox
 
 from fvnotes.exceptions import CannotSaveFileError
+from fvnotes.gui.ui.syntax_highlighter import  Highlighter
 
 
 class TextEditGuide(QTextEdit):
@@ -53,6 +54,8 @@ class TextEditGuide(QTextEdit):
         self._current_file = None
         self.parent = parent
         self._unchanged_note_hash = None
+
+        self.highlighter = Highlighter(self.document())
 
     def _initialize_gui(self):
         self.font = self.currentFont()
