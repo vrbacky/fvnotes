@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QSplitter, \
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
     NotFileOrDirError
+from fvnotes.gui.ui.preferences_manager import PreferencesManager
 from fvnotes.path import rmdir_recursive
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 from fvnotes.gui.ui.custom_widgets import TextEditGuide
@@ -64,6 +65,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(self.tool_bar)
         self.status_bar = self.statusBar()
 
+        self.preferences = PreferencesManager(AUTHOR, NAME)
         self.init_ui()
 
     def init_ui(self):
