@@ -5,11 +5,12 @@ import string
 
 import os
 from PyQt5.QtCore import pyqtSignal, QFile
-from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase
+from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase, \
+    QFont
 from PyQt5.QtWidgets import QTextEdit, QMessageBox
 
 from fvnotes.exceptions import CannotSaveFileError
-from fvnotes.gui.ui.syntax_highlighter import  Highlighter
+from fvnotes.gui.ui.syntax_highlighter import Highlighter
 
 
 class TextEditGuide(QTextEdit):
@@ -21,8 +22,10 @@ class TextEditGuide(QTextEdit):
         Parent of the new widget
     guides_color : QColor
         Color of the guidelines
-    line_positions : iterable
+    guides_positions : iterable
         Positions of the guidelines in number of average characters
+    font : QFont
+        Font of the widget
 
 
     Attributes
@@ -45,6 +48,7 @@ class TextEditGuide(QTextEdit):
                  parent=None,
                  guides_color=QColor('#AAAAAA'),
                  guides_positions=(72, 80),
+                 font=QFont('Ubuntu Mono', 11),
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._margin = self.document().documentMargin()
@@ -54,7 +58,7 @@ class TextEditGuide(QTextEdit):
         self._current_file = None
         self.parent = parent
         self._unchanged_note_hash = None
-
+        self.font = font
         self.highlighter = Highlighter(self.document())
 
     def _initialize_gui(self):
