@@ -13,7 +13,8 @@ class PreferencesManager:
         self._themes_settings = QSettings(author, f'{app_name}-themes')
         self._code_highlight_settings = QSettings(author,
                                                   f'{app_name}-code_highlight')
-        self._favourites = QSettings(author, f'{app_name}-favourites')
+        self._favourites_path =\
+            QSettings(author, f'{app_name}-favourites').fileName()
 
         self.general_defaults = {
             'Theme': ('Dark', str),
@@ -68,7 +69,7 @@ class PreferencesManager:
             value = settings.value(key,
                                    defaultValue=default_value,
                                    type=default_type)
-            if isinstance(key, list):
+            if isinstance(default_value, list):
                 value = self.get_iterable_value(value)
             values[key] = value
         return values
@@ -106,12 +107,7 @@ class PreferencesManager:
 
     @property
     def general(self):
-        checked_list_values = {}
-        for key, value in self._general.items():
-            if isinstance(self.general_defaults[key][0], list):
-                value = self.get_iterable_value(value)
-            checked_list_values[key] = value
-        return checked_list_values
+        return self._general
 
     @general.setter
     def general(self, new_settings):
@@ -142,11 +138,15 @@ class PreferencesManager:
 
     @property
     def favourites(self):
-        for key in self._favourites.allKeys():
-            yield key
+        try:
+            with open(self._favourites_path, 'r') as f:
+                for line in f.readlines():
+                    yield line.strip()
+        except FileNotFoundError:
+            return []
 
     @favourites.setter
     def favourites(self, new_favourites):
-        self._favourites.clear()
-        for fav in new_favourites:
-            self._favourites.setValue(fav, 1)
+        with open(self._favourites_path, 'w') as f:
+            for fav in new_favourites:
+                print(fav, file=f)
