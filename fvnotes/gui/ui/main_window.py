@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QSplitter, \
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
     NotFileOrDirError
+from fvnotes.gui.ui.preferences import PreferencesDialog
 from fvnotes.gui.ui.preferences_manager import PreferencesManager
 from fvnotes.path import rmdir_recursive
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
@@ -55,8 +56,15 @@ class MainWindow(QMainWindow):
         self.tool_bar.save_note.connect(self.main_widget.save_note)
         self.menu_bar.save_journal.connect(self.main_widget.save_journal)
         self.tool_bar.save_journal.connect(self.main_widget.save_journal)
+        self.menu_bar.open_preferences.connect(self.open_preferences)
         self.show()
         self.change_color_scheme()
+
+    def open_preferences(self):
+        self.preferences = PreferencesDialog(settings=PREFERENCES.general,
+                                             themes=PREFERENCES.themes)
+        if self.preferences.exec_():
+            print('closed')
 
     def change_color_scheme(self):
         general = PREFERENCES.general

@@ -7,7 +7,8 @@ import os
 from PyQt5.QtCore import pyqtSignal, QFile
 from PyQt5.QtGui import QPainter, QPen, QColor, QFontMetrics, QFontDatabase, \
     QFont
-from PyQt5.QtWidgets import QTextEdit, QMessageBox
+from PyQt5.QtWidgets import QTextEdit, QMessageBox, QLineEdit, QLabel, \
+    QHBoxLayout, QVBoxLayout, QWidget, QComboBox, QFileDialog, QPushButton
 
 from fvnotes.exceptions import CannotSaveFileError
 from fvnotes.gui.ui.syntax_highlighter import Highlighter
@@ -290,3 +291,113 @@ class TextEditGuide(QTextEdit):
                 filename += '_'
 
         return filename
+
+
+class LabeledWidget(QWidget):
+    def __init__(self, widget, parent=None, label='Font size:',
+                 width=40, name='', tooltip='', vertical=False):
+        super().__init__(parent=parent)
+
+        self.label = QLabel(label)
+        self.input_widget = widget
+        if tooltip != '':
+            self.input_widget.setToolTip(tooltip)
+        self.input_widget.setObjectName(name)
+        self.input_widget.setMinimumWidth(width)
+
+        if vertical:
+            self.layout = QVBoxLayout()
+        else:
+            self.layout = QHBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.input_widget, 1)
+        self.setLayout(self.layout)
+
+
+class LabeledText(LabeledWidget):
+    def __init__(self, parent=None, label='Font size:', text='',
+                 width=40, name='', tooltip='', vertical=False):
+        super().__init__(QLineEdit(),
+                         parent=parent,
+                         label=label,
+                         width=width,
+                         name=name,
+                         tooltip=tooltip,
+                         vertical=vertical)
+        self.input_widget.setText(text)
+
+    @property
+    def text(self):
+        return self.text_field.text()
+
+    @text.setter
+    def text(self, text):
+        self.input_widget.setText(text)
+
+
+class LabeledComboBox(LabeledWidget):
+    def __init__(self, parent=None, label='Font size:', values=[],
+                 width=40, name='', tooltip='', vertical=False,
+                 editable=False):
+        super().__init__(QComboBox(),
+                         parent=parent,
+                         label=label,
+                         width=width,
+                         name=name,
+                         tooltip=tooltip,
+                         vertical=vertical)
+
+        self.input_widget.setEditable(editable)
+        self.input_widget.setDuplicatesEnabled(False)
+        self._values = values
+        self.input_widget.addItems(values)
+
+    @property
+    def text(self):
+        return self.input_widget.currentText()
+
+    @text.setter
+    def text(self, text):
+        if text not in self._values:
+            self._values.append(text)
+            self.input_widget.addItem(text)
+        self.input_widget.setCurrentText(text)
+
+
+class LabeledPath(QWidget):
+    def __init__(self, parent=None, label='Font size:', text='',
+                 width=40, name='', tooltip='', vertical=False,
+                 open_dir=False):
+        super().__init__(parent),
+        self._open_dir = open_dir
+        self.labeled_text = LabeledText(parent, label, text, width, name,
+                                        tooltip, vertical)
+        self.parent = parent
+        self.button = QPushButton('Browse...')
+        self.button.clicked.connect(self.open_dialog)
+        if tooltip != '':
+            self.input_widget.setToolTip(tooltip)
+        self.layout = QHBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(self.labeled_text)
+        self.layout.addWidget(self.button)
+        self.setLayout(self.layout)
+
+    @property
+    def text(self):
+        return self.labeled_text.text
+
+    @text.setter
+    def text(self, text):
+        self.labeled_text.text = text
+
+    def open_dialog(self):
+        if self._open_dir:
+            path = QFileDialog.getExistingDirectory(parent=self.parent,
+                                                    caption='Open Directory')
+            self.labeled_text.text = path
+        else:
+            path = QFileDialog.getOpenFileName(parent=self.parent,
+                                               caption='Open Directory')
+            self.labeled_text.text = path[0]

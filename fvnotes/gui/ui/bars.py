@@ -12,6 +12,7 @@ class MenuBar(QMenuBar):
     create_note = pyqtSignal()
     save_note = pyqtSignal()
     save_journal = pyqtSignal()
+    open_preferences = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -38,6 +39,7 @@ class MenuBar(QMenuBar):
 
         preferences_action = QAction('&Preferences', self)
         preferences_action.setShortcut('Ctrl+P')
+        preferences_action.triggered.connect(self.open_preferences.emit)
 
         file.addAction(new_note)
         file.addAction(save_note)
