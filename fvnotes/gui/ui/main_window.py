@@ -7,7 +7,8 @@ from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox, QAction, QMenu, QInputDialog, QListWidget
+    QMessageBox, QAction, QMenu, QInputDialog, QListWidget, QLineEdit, \
+    QComboBox
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
@@ -64,7 +65,32 @@ class MainWindow(QMainWindow):
         self.preferences = PreferencesDialog(settings=PREFERENCES.general,
                                              themes=PREFERENCES.themes)
         if self.preferences.exec_():
-            print('closed')
+            self._save_preferences()
+            self._change_settings()
+
+    def _save_preferences(self):
+        children_widgets = (QLineEdit,
+                            QComboBox,
+                            )
+        new_settings = {}
+        for widget in self.preferences.findChildren(children_widgets):
+            widget_name = widget.objectName()
+            if isinstance(widget, QLineEdit) and widget_name != '':
+                value = widget.text()
+                if 'Vertical_lines' in widget.objectName():
+                    value = [int(i) for i in value.split(',')]
+                new_settings[widget_name] = value
+                new_settings[widget_name] = value
+            elif isinstance(widget, QComboBox) and widget_name != '':
+                value = widget.currentText()
+                new_settings[widget_name] = value
+        PREFERENCES.general = new_settings
+
+    def _change_settings(self):
+        self.change_color_scheme()
+        self.main_widget.change_vertical_lines()
+        self.main_widget.change_fonts()
+        self.main_widget.set_root_directory()
 
     def change_color_scheme(self):
         general = PREFERENCES.general
@@ -170,12 +196,6 @@ class MainWindow(QMainWindow):
             f'background-color: {theme["App_background"]};}}'
         )
 
-        self.main_widget.change_vertical_lines(
-            general["Notes/Vertical_lines"],
-            general["Journal/Vertical_lines"],
-            theme["Vertical_line_color"]
-        )
-
     def closeEvent(self, event):
         if self.main_widget.notes_text.current_file is not None:
             self.main_widget.notes_text.save_file()
@@ -206,21 +226,10 @@ class MainWidget(QWidget):
         self.files_view = QTreeView(headerHidden=True, rootIsDecorated=False)
         self.favourites = QListWidget()
         self.favourite_paths = set(PREFERENCES.favourites)
-
-        notes_font = QFont(PREFERENCES.general['Notes/Font'],
-                           PREFERENCES.general['Notes/Font_size'])
-        self.notes_text = TextEditGuide(
-            parent=self,
-            font=notes_font
-        )
+        self.notes_text = TextEditGuide(parent=self)
         self.journal_widget = QWidget()
         self.journal_layout = QVBoxLayout()
-        journal_font = QFont(PREFERENCES.general['Journal/Font'],
-                             PREFERENCES.general['Journal/Font_size'])
-        self.journal_text = TextEditGuide(
-            parent=self,
-            font=journal_font
-        )
+        self.journal_text = TextEditGuide(parent=self)
         self.journal_calendar_wrapper = QWidget()
         self.journal_calendar_layout = QHBoxLayout()
         self.journal_calendar = QCalendarWidget()
@@ -306,8 +315,19 @@ class MainWidget(QWidget):
         self.journal_calendar.selectionChanged.connect(
             self.journal_file_changed)
 
-        self._update_favourites()
         self.timer.singleShot(1, self.select_first_dir)
+
+        self._update_favourites()
+        self.change_vertical_lines()
+        self.change_fonts()
+
+    def set_root_directory(self):
+        old_root_dir = self.root_dir
+        self.root_dir = PREFERENCES.general['Journal_path']
+        if self.root_dir != old_root_dir:
+            self.create_note()
+        self.init_ui()
+        self._rename_window()
 
     def files_context_menu(self, position):
         index = self.files_view.indexAt(position)
@@ -355,11 +375,32 @@ class MainWidget(QWidget):
         menu.addAction(delete_dir_action)
         menu.exec_(self.directories_view.viewport().mapToGlobal(position))
 
-    def change_vertical_lines(self, notes_positions, journal_positions, color):
+    def change_vertical_lines(self,
+                              notes_positions=None,
+                              journal_positions=None,
+                              color=None):
+        if notes_positions is None:
+            notes_positions = PREFERENCES.general['Notes/Vertical_lines']
+        if journal_positions is None:
+            journal_positions = PREFERENCES.general['Journal/Vertical_lines']
+        if color is None:
+            theme = PREFERENCES.general['Theme']
+            color = PREFERENCES.themes[theme]['Vertical_line_color']
+
         self.notes_text.guides_positions = notes_positions
         self.journal_text.guides_positions = journal_positions
         self.notes_text.guides_color = color
         self.journal_text.guides_color = color
+
+    def change_fonts(self):
+        self.notes_text.font = QFont(
+            PREFERENCES.general['Notes/Font'],
+            int(PREFERENCES.general['Notes/Font_size'])
+        )
+        self.journal_text.font = QFont(
+            PREFERENCES.general['Journal/Font'],
+            int(PREFERENCES.general['Journal/Font_size'])
+        )
 
     def select_first_dir(self):
         """Select the first child of the root directory"""
