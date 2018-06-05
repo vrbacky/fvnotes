@@ -56,56 +56,47 @@ class PreferencesManager:
             'Dark/numbers': ('6897BB', str),
         }
 
-        if len(self._themes_settings.allKeys()) == 0:
-            self._create_default_config(self._themes_settings,
-                                        self.themes_defaults)
-
-        self._themes = self._get_deep_config(self._themes_settings)
-        self._general = self._get_settings(self._general_settings,
-                                           self.general_defaults)
-        self._code_highlights = self._get_deep_settings(
+        self._general = self._read_config(self._general_settings,
+                                          self.general_defaults,
+                                          deep=False)
+        self._themes = self._read_config(self._themes_settings,
+                                         self.themes_defaults)
+        self._code_highlights = self._read_config(
             self._code_highlight_settings,
             self.highlights_defaults)
+
+    def _read_config(self, settings, defaults, deep=True):
+        if len(settings.allKeys()) == 0:
+            self._create_default_config(settings, defaults)
+        if deep:
+            func = self._get_deep_config
+        else:
+            func = self._get_config
+        return func(settings, defaults)
 
     @staticmethod
     def _create_default_config(settings, default_values):
         for key, (default_value, default_type) in default_values.items():
             settings.setValue(key, default_value)
 
-    @staticmethod
-    def _get_deep_config(settings):
+    def _get_config(self, settings, defaults):
         keys = settings.allKeys()
         values = defaultdict(dict)
         for key in keys:
-            value = settings.value(key)
-            keys = key.split('/', maxsplit=1)
-            values[keys[0]][keys[1]] = value
-        return values
-
-    def _get_settings(self, settings, default_values):
-        values = {}
-        for key, (default_value, default_type) in default_values.items():
-            value = settings.value(key,
-                                   defaultValue=default_value,
-                                   type=default_type)
+            default_value, default_type = defaults.get(key, ('', str))
+            value = settings.value(key, type=default_type)
             if isinstance(default_value, list):
                 value = self.get_iterable_value(value)
             values[key] = value
         return values
 
-    def _get_deep_settings(self, settings, default_values):
-        separated_levels = defaultdict(dict)
-        values = self._get_settings(settings, default_values)
-        for key, value in values.items():
+    def _get_deep_config(self, settings, defaults):
+        temp_values = self._get_config(settings, defaults)
+        values = defaultdict(dict)
+        for key, value in temp_values.items():
             keys = key.split('/', maxsplit=1)
-            separated_levels[keys[0]][keys[1]] = value
-        return separated_levels
-
-    @staticmethod
-    def _set_deep_settings(settings, all_values):
-        for group, values in all_values.items():
-            for key, value in values.items():
-                settings.setValue(f'{group}/{key}', value)
+            values[keys[0]][keys[1]] = value
+        return values
 
     @staticmethod
     def get_iterable_value(value):
