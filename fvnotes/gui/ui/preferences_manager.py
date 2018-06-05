@@ -55,13 +55,32 @@ class PreferencesManager:
             'Dark/self': ('8F4F7C', str),
             'Dark/numbers': ('6897BB', str),
         }
+
+        if len(self._themes_settings.allKeys()) == 0:
+            self._create_default_config(self._themes_settings,
+                                        self.themes_defaults)
+
+        self._themes = self._get_deep_config(self._themes_settings)
         self._general = self._get_settings(self._general_settings,
                                            self.general_defaults)
-        self._themes = self._get_deep_settings(self._themes_settings,
-                                               self.themes_defaults)
         self._code_highlights = self._get_deep_settings(
             self._code_highlight_settings,
             self.highlights_defaults)
+
+    @staticmethod
+    def _create_default_config(settings, default_values):
+        for key, (default_value, default_type) in default_values.items():
+            settings.setValue(key, default_value)
+
+    @staticmethod
+    def _get_deep_config(settings):
+        keys = settings.allKeys()
+        values = defaultdict(dict)
+        for key in keys:
+            value = settings.value(key)
+            keys = key.split('/', maxsplit=1)
+            values[keys[0]][keys[1]] = value
+        return values
 
     def _get_settings(self, settings, default_values):
         values = {}
