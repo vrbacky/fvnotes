@@ -65,6 +65,9 @@ class PreferencesManager:
             self._code_highlight_settings,
             self.highlights_defaults)
 
+        if self._general['Theme'] not in self._themes:
+            self._general['Theme'] = list(self._themes.keys())[0]
+
     def _read_config(self, settings, defaults, deep=True):
         if len(settings.allKeys()) == 0:
             self._create_default_config(settings, defaults)
