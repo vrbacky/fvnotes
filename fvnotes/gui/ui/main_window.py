@@ -4,45 +4,22 @@ import os
 from pathlib import Path
 
 from PyQt5.QtCore import QDir, Qt, QTimer, QFile, QSortFilterProxyModel
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QSplitter, \
     QWidget, QCalendarWidget, QVBoxLayout, QFileSystemModel, QTreeView, \
-    QMessageBox, QAction, QMenu, QInputDialog, QListWidget
+    QMessageBox, QAction, QMenu, QInputDialog, QListWidget, QLineEdit, \
+    QComboBox
 
 from fvnotes import AUTHOR, NAME, VERSION
 from fvnotes.exceptions import CannotRenameFileError, CannotSaveFileError, \
     NotFileOrDirError
+from fvnotes.gui.ui.preferences import PreferencesDialog
+from fvnotes.gui.ui.preferences_manager import PreferencesManager
 from fvnotes.path import rmdir_recursive
 from fvnotes.gui.ui.bars import MenuBar, ToolBar
 from fvnotes.gui.ui.custom_widgets import TextEditGuide
 
-
-NOTES_FONT = 'Ubuntu Mono'
-NOTES_FONT_SIZE = '11'
-TREES_FONT = 'Ubuntu'
-TREES_FONT_SIZE = '10'
-CALENDAR_FONT = 'Ubuntu'
-CALENDAR_FONT_SIZE = '10'
-
-# Light color scheme
-APP_BACKGROUND = '#D0D0D0'
-MENU_SELECTED = '#A0A0A0'
-WIDGET_BACKGROUND = '#F5F5F5'
-FONT_COLOR = '#050505'
-FONT_INACTIVE = '#A0A0A0'
-VERTICAL_LINE_COLOR = '#C0C0C0'
-
-# Dark color scheme
-APP_BACKGROUND = '#202020'
-MENU_SELECTED = '#454545'
-WIDGET_BACKGROUND = '#101010'
-FONT_COLOR = '#B5B5B5'
-FONT_INACTIVE = '#2F2F2F'
-VERTICAL_LINE_COLOR = '#353535'
-
-VERTICAL_LINES_NOTES = {40, 80}
-VERTICAL_LINES_JOURNAL = 80
-
-FAVOURITES = set()
+PREFERENCES = PreferencesManager(AUTHOR, NAME)
 
 
 class MainWindow(QMainWindow):
@@ -68,7 +45,6 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         # self.showMaximized()
-        self.change_color_scheme()
         self.setWindowTitle(self.window_title)
         self.setCentralWidget(self.main_widget)
         self.status_bar.showMessage('StatusBar')
@@ -81,108 +57,143 @@ class MainWindow(QMainWindow):
         self.tool_bar.save_note.connect(self.main_widget.save_note)
         self.menu_bar.save_journal.connect(self.main_widget.save_journal)
         self.tool_bar.save_journal.connect(self.main_widget.save_journal)
-
+        self.menu_bar.open_preferences.connect(self.open_preferences)
         self.show()
+        self.change_color_scheme()
+
+    def open_preferences(self):
+        self.preferences = PreferencesDialog(settings=PREFERENCES.general,
+                                             themes=PREFERENCES.themes)
+        if self.preferences.exec_():
+            self._save_preferences()
+            self._change_settings()
+
+    def _save_preferences(self):
+        children_widgets = (QLineEdit,
+                            QComboBox,
+                            )
+        new_settings = {}
+        for widget in self.preferences.findChildren(children_widgets):
+            widget_name = widget.objectName()
+            if isinstance(widget, QLineEdit) and widget_name != '':
+                value = widget.text()
+                if 'Vertical_lines' in widget.objectName():
+                    value = [int(i) for i in value.split(',')]
+                new_settings[widget_name] = value
+                new_settings[widget_name] = value
+            elif isinstance(widget, QComboBox) and widget_name != '':
+                value = widget.currentText()
+                new_settings[widget_name] = value
+        PREFERENCES.general = new_settings
+
+    def _change_settings(self):
+        self.change_color_scheme()
+        self.main_widget.change_vertical_lines()
+        self.main_widget.change_fonts()
+        self.main_widget.set_root_directory()
 
     def change_color_scheme(self):
+        general = PREFERENCES.general
+        theme = PREFERENCES.themes[general['Theme']]
+
         self.setStyleSheet(
             f'QMainWindow{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QMenuBar{{'
-            f'background-color: {APP_BACKGROUND};}}'
+            f'background-color: {theme["App_background"]};}}'
 
             f'QMenuBar::item{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QMenuBar::item::selected{{'
-            f'background-color: {MENU_SELECTED};}}'
+            f'background-color: {theme["Menu_selected"]};}}'
 
             f'QMenu{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QMenu::item::selected{{'
-            f'background-color: {MENU_SELECTED};}}'
+            f'background-color: {theme["Menu_selected"]};}}'
 
             f'QToolBar{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QToolButton::hover{{'
-            f'background-color: {MENU_SELECTED};'
-            f'color: {FONT_COLOR}}}'
+            f'background-color: {theme["Menu_selected"]};'
+            f'color: {theme["Font_color"]}}}'
 
             f'QStatusBar{{'
-            f'color: {FONT_COLOR};}}'
+            f'color: {theme["Font_color"]};}}'
 
             f'QTextEdit{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'font-size: {NOTES_FONT_SIZE}pt;'
-            f'font-family: {NOTES_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'font-size: {general["Notes/Font_size"]}pt;'
+            f'font-family: {general["Notes/Font"]};}}'
 
             f'QTreeView{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'font-size: {TREES_FONT_SIZE}pt;'
-            f'font: {TREES_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'font-size: {general["Trees/Font_size"]}pt;'
+            f'font: {general["Trees/Font"]};}}'
 
             f'QListWidget{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'font-size: {TREES_FONT_SIZE}pt;'
-            f'font: {TREES_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'font-size: {general["Trees/Font_size"]}pt;'
+            f'font: {general["Trees/Font"]};}}'
 
             f'QListWidget:active{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'font-size: {TREES_FONT_SIZE}pt;'
-            f'font: {TREES_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'font-size: {general["Trees/Font_size"]}pt;'
+            f'font: {general["Trees/Font"]};}}'
 
             f'QListWidget:item:selected{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'font-size: {TREES_FONT_SIZE}pt;'
-            f'font: {TREES_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'font-size: {general["Trees/Font_size"]}pt;'
+            f'font: {general["Trees/Font"]};}}'
 
             f'QCalendarWidget QWidget{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'font-size: {CALENDAR_FONT_SIZE}pt;'
-            f'font: {CALENDAR_FONT};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'font-size: {general["Journal/Font"]}pt;'
+            f'font: {general["Journal/Font"]};}}'
 
             f'QCalendarWidget QToolButton{{'
-            f'color: {FONT_COLOR}}}'
+            f'color: {theme["Font_color"]}}}'
 
             f'QCalendarWidget QToolButton::hover{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR}}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]}}}'
 
             f'QCalendarWidget QSpinBox{{'
-            f'background-color: {APP_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["App_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QCalendarWidget QMenu{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};}}'
 
             f'QCalendarWidget QAbstractItemView:enabled{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_COLOR};'
-            f'selection-background-color: {APP_BACKGROUND};'
-            f'selection-color: {FONT_COLOR};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_color"]};'
+            f'selection-background-color: {theme["App_background"]};'
+            f'selection-color: {theme["Font_color"]};}}'
 
             f'QCalendarWidget QAbstractItemView:disabled{{'
-            f'background-color: {WIDGET_BACKGROUND};'
-            f'color: {FONT_INACTIVE};}}'
+            f'background-color: {theme["Widget_background"]};'
+            f'color: {theme["Font_inactive"]};}}'
 
             f'QCalendarWidget QWidget{{'
-            f'alternate-background-color: {APP_BACKGROUND};}}'
+            f'alternate-background-color: {theme["App_background"]};}}'
 
             f'QScrollBar{{'
-            f'background-color: {APP_BACKGROUND};}}'
+            f'background-color: {theme["App_background"]};}}'
         )
 
     def closeEvent(self, event):
@@ -193,6 +204,7 @@ class MainWindow(QMainWindow):
             except CannotRenameFileError:
                 event.ignore()
         self.main_widget.save_journal()
+        PREFERENCES.favourites = self.main_widget.favourite_paths
 
 
 class MainWidget(QWidget):
@@ -200,7 +212,7 @@ class MainWidget(QWidget):
         super().__init__(parent=parent)
         self.parent = parent
 
-        self.ROOT_DIR = '/home/fv-user/notes'
+        self.root_dir = PREFERENCES.general['Journal_path']
 
         self.main_layout = QHBoxLayout()
         self.main_splitter = QSplitter()
@@ -213,18 +225,11 @@ class MainWidget(QWidget):
         self.files_proxy = QSortFilterProxyModel()
         self.files_view = QTreeView(headerHidden=True, rootIsDecorated=False)
         self.favourites = QListWidget()
-
-        self.notes_text = TextEditGuide(
-            parent=self,
-            guides_color=VERTICAL_LINE_COLOR,
-            guides_positions=VERTICAL_LINES_NOTES)
-
+        self.favourite_paths = set(PREFERENCES.favourites)
+        self.notes_text = TextEditGuide(parent=self)
         self.journal_widget = QWidget()
         self.journal_layout = QVBoxLayout()
-        self.journal_text = TextEditGuide(
-            parent=self,
-            guides_color=VERTICAL_LINE_COLOR,
-            guides_positions=VERTICAL_LINES_JOURNAL)
+        self.journal_text = TextEditGuide(parent=self)
         self.journal_calendar_wrapper = QWidget()
         self.journal_calendar_layout = QHBoxLayout()
         self.journal_calendar = QCalendarWidget()
@@ -255,7 +260,7 @@ class MainWidget(QWidget):
         self.directories_proxy.setSourceModel(self.directories_model)
         self.directories_proxy.setDynamicSortFilter(True)
         directories_model_index = self.directories_model.setRootPath(
-            self.ROOT_DIR)
+            self.root_dir)
         self.root_index = self.directories_proxy.mapFromSource(
             directories_model_index)
         self.directories_view.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -310,14 +315,25 @@ class MainWidget(QWidget):
         self.journal_calendar.selectionChanged.connect(
             self.journal_file_changed)
 
-        self._update_favourites()
         self.timer.singleShot(1, self.select_first_dir)
+
+        self._update_favourites()
+        self.change_vertical_lines()
+        self.change_fonts()
+
+    def set_root_directory(self):
+        old_root_dir = self.root_dir
+        self.root_dir = PREFERENCES.general['Journal_path']
+        if self.root_dir != old_root_dir:
+            self.create_note()
+        self.init_ui()
+        self._rename_window()
 
     def files_context_menu(self, position):
         index = self.files_view.indexAt(position)
         file_path = self.get_path_to_file(index)
         if file_path != '':
-            short_file_path = os.path.relpath(file_path, start=self.ROOT_DIR)
+            short_file_path = os.path.relpath(file_path, start=self.root_dir)
 
         menu = QMenu()
         delete_file_action = QAction('Delete the file')
@@ -359,10 +375,37 @@ class MainWidget(QWidget):
         menu.addAction(delete_dir_action)
         menu.exec_(self.directories_view.viewport().mapToGlobal(position))
 
+    def change_vertical_lines(self,
+                              notes_positions=None,
+                              journal_positions=None,
+                              color=None):
+        if notes_positions is None:
+            notes_positions = PREFERENCES.general['Notes/Vertical_lines']
+        if journal_positions is None:
+            journal_positions = PREFERENCES.general['Journal/Vertical_lines']
+        if color is None:
+            theme = PREFERENCES.general['Theme']
+            color = PREFERENCES.themes[theme]['Vertical_line_color']
+
+        self.notes_text.guides_positions = notes_positions
+        self.journal_text.guides_positions = journal_positions
+        self.notes_text.guides_color = color
+        self.journal_text.guides_color = color
+
+    def change_fonts(self):
+        self.notes_text.font = QFont(
+            PREFERENCES.general['Notes/Font'],
+            int(PREFERENCES.general['Notes/Font_size'])
+        )
+        self.journal_text.font = QFont(
+            PREFERENCES.general['Journal/Font'],
+            int(PREFERENCES.general['Journal/Font_size'])
+        )
+
     def select_first_dir(self):
         """Select the first child of the root directory"""
         first_child_index = self.directories_model.index(
-            self.ROOT_DIR).child(0, 0)
+            self.root_dir).child(0, 0)
         proxy_index = self.directories_proxy.mapFromSource(first_child_index)
         self.directories_view.setCurrentIndex(proxy_index)
 
@@ -372,7 +415,7 @@ class MainWidget(QWidget):
             if self.notes_text.current_file is not None:
                 short_current_file = os.path.relpath(
                     self.notes_text.current_file,
-                    start=self.ROOT_DIR)
+                    start=self.root_dir)
                 title += f' - {short_current_file}'
             if self.notes_text.text_has_changed:
                 title = f'{title}*'
@@ -396,7 +439,7 @@ class MainWidget(QWidget):
     def clear_file_selection(self):
         note_abspath = self.get_path_to_file()
         is_file = os.path.isfile(note_abspath)
-        is_in_notes = Path(self.ROOT_DIR) in Path(note_abspath).parents
+        is_in_notes = Path(self.root_dir) in Path(note_abspath).parents
         if is_file and is_in_notes:
             self.files_view.clearSelection()
 
@@ -555,9 +598,9 @@ class MainWidget(QWidget):
             selected_dir = self.get_path_to_dir(parent_index)
             if selected_dir == '':
                 self.directories_view.clearSelection()
-                selected_dir = self.ROOT_DIR
+                selected_dir = self.root_dir
         else:
-            selected_dir = self.ROOT_DIR
+            selected_dir = self.root_dir
         dirname, is_ok = QInputDialog.getText(self,
                                               title,
                                               'Directory name:')
@@ -592,7 +635,7 @@ class MainWidget(QWidget):
         """
         current_directory = self.get_path_to_dir(index)
         new_index = self.index_of_sibling_or_parent(index)
-        if self.get_path_to_dir(new_index) == self.ROOT_DIR:
+        if self.get_path_to_dir(new_index) == self.root_dir:
             self.files_model.setNameFilters([''])
             self.files_model.setNameFilterDisables(False)
 
@@ -674,7 +717,7 @@ class MainWidget(QWidget):
                             f'{date.month():0>2}',
                             f'{date.day():0>2}',
                             )
-        path_to_journal = os.path.join(self.ROOT_DIR,
+        path_to_journal = os.path.join(self.root_dir,
                                        '.journal__',
                                        year,
                                        month)
@@ -709,14 +752,14 @@ class MainWidget(QWidget):
 
     def _create_journal_dir(self):
         """Create a journal directory, if it doesn't exist."""
-        calendar_dir = os.path.join(self.ROOT_DIR, '.journal__')
+        calendar_dir = os.path.join(self.root_dir, '.journal__')
         if not QDir().exists(calendar_dir):
             QDir().mkpath(calendar_dir)
 
     def _favourite_clicked(self, item):
         short_path = item.text()
         if self.save_note(selection_changed=True):
-            abs_path = os.path.join(self.ROOT_DIR, short_path)
+            abs_path = os.path.join(self.root_dir, short_path)
             if os.path.isfile(abs_path):
                 self.select_dir_by_path(os.path.dirname(abs_path))
                 self.select_file_by_name(abs_path)
@@ -732,19 +775,19 @@ class MainWidget(QWidget):
                     self.favourites.currentItem().text())
 
     def _update_favourites(self):
-        """Clear favourities and fill in paths in FAVOURITIES constant"""
+        """Clear favourities and fill in paths in favourite_paths"""
         self.favourites.clear()
-        for i, item in enumerate(self._sort_paths(FAVOURITES)):
+        for i, item in enumerate(self._sort_paths(self.favourite_paths)):
             self.favourites.addItem(item)
 
     def _remove_from_favourites(self, path):
-        """Remove the path from the FAVOURITES constant"""
-        FAVOURITES.remove(path)
+        """Remove the path from favourite_paths"""
+        self.favourite_paths.remove(path)
         self._update_favourites()
 
     def _add_to_favourites(self, path):
-        """Add the path to the FAVOURITES constant"""
-        FAVOURITES.add(path)
+        """Add the path to self.favourite_paths"""
+        self.favourite_paths.add(path)
         self._update_favourites()
 
     @staticmethod
