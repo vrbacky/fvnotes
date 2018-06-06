@@ -259,19 +259,12 @@ class MainWidget(QWidget):
             QDir.Dirs | QDir.NoDotAndDotDot | QDir.Name)
         self.directories_proxy.setSourceModel(self.directories_model)
         self.directories_proxy.setDynamicSortFilter(True)
-        directories_model_index = self.directories_model.setRootPath(
-            self.root_dir)
-        self.root_index = self.directories_proxy.mapFromSource(
-            directories_model_index)
+
         self.directories_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.directories_view.customContextMenuRequested.connect(
             self.dirs_context_menu)
         self.directories_view.setRootIsDecorated(True)
         self.directories_view.setModel(self.directories_proxy)
-        self.directories_view.setRootIndex(self.root_index)
-
-        self._hide_unnecessary_columns(self.directories_view)
-
         self.files_model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
         self.files_proxy.setSourceModel(self.files_model)
         self.files_proxy.setDynamicSortFilter(True)
@@ -282,8 +275,6 @@ class MainWidget(QWidget):
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(
             self.files_context_menu)
-
-        self._hide_unnecessary_columns(self.files_view)
 
         self.favourites.setContextMenuPolicy(Qt.CustomContextMenu)
         self.favourites.customContextMenuRequested.connect(
@@ -315,19 +306,28 @@ class MainWidget(QWidget):
         self.journal_calendar.selectionChanged.connect(
             self.journal_file_changed)
 
-        self.timer.singleShot(1, self.select_first_dir)
-
-        self._update_favourites()
         self.change_vertical_lines()
         self.change_fonts()
+        self._hide_unnecessary_columns(self.directories_view)
+        self._hide_unnecessary_columns(self.files_view)
+        self._reload_on_update()
+
+    def _reload_on_update(self):
+        self.directories_model_index = self.directories_model.setRootPath(
+            self.root_dir)
+        self.root_index = self.directories_proxy.mapFromSource(
+            self.directories_model_index)
+        self.directories_view.setRootIndex(self.root_index)
+        self._update_favourites()
+        self.timer.singleShot(200, self.select_first_dir)
 
     def set_root_directory(self):
         old_root_dir = self.root_dir
         self.root_dir = PREFERENCES.general['Journal_path']
         if self.root_dir != old_root_dir:
             self.create_note()
-        self.init_ui()
         self._rename_window()
+        self._reload_on_update()
 
     def files_context_menu(self, position):
         index = self.files_view.indexAt(position)
