@@ -408,6 +408,15 @@ class MainWidget(QWidget):
             self.root_dir).child(0, 0)
         proxy_index = self.directories_proxy.mapFromSource(first_child_index)
         self.directories_view.setCurrentIndex(proxy_index)
+        while True:
+            if not self._is_dir_empty():
+                break
+            self._create_dir(title='Create the first directory:')
+
+    def _is_dir_empty(self):
+        if self.directories_model.rowCount(self.directories_model_index) == 0:
+            return True
+        return False
 
     def _rename_window(self, title=None):
         if title is None:
