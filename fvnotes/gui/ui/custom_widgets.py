@@ -329,7 +329,7 @@ class LabeledText(LabeledWidget):
 
     @property
     def text(self):
-        return self.text_field.text()
+        return self.input_widget.text()
 
     @text.setter
     def text(self, text):

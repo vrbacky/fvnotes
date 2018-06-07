@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import os
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFontDatabase
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, \
-    QDialogButtonBox, QLineEdit, QComboBox
+    QDialogButtonBox, QLineEdit, QComboBox, QMessageBox
 
 from fvnotes.gui.ui.custom_widgets import LabeledText, LabeledComboBox, \
     LabeledPath
@@ -68,6 +69,16 @@ class PreferencesDialog(QDialog):
                 widget.setCursorPosition(0)
             elif isinstance(widget, QComboBox) and widget_name != '':
                 widget.parent().text = str(self.settings[widget_name])
+
+    def accept(self):
+        journal_dir = self.path_to_journal.text
+        if os.path.isdir(journal_dir):
+            super().accept()
+        else:
+            QMessageBox.critical(
+                self,
+                "Directory doesn't exist",
+                f"Directory {journal_dir} doesn't exist.")
 
 
 class TextEditPreferences(QGroupBox):
