@@ -25,7 +25,8 @@ def _create_recursive_dir_content(directory):
     """
     to_be_deleted = [directory]
 
-    subdirs = QDirIterator(directory, QDir.Dirs | QDir.NoDotAndDotDot)
+    subdirs = QDirIterator(directory, QDir.Dirs | QDir.NoDotAndDotDot |
+                           QDir.Hidden)
     files = QDirIterator(directory, QDir.Files)
 
     while files.hasNext():
